@@ -1,0 +1,324 @@
+---
+title: "Demographic & Housing Trend Intelligence"
+subtitle: "Portfolio Performance Evaluation"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    theme: flatly
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+library(tidyverse)
+library(sf)
+library(leaflet)
+library(DT)
+library(scales)
+
+final_data <- read_rds("../data/processed/final_analytical_data.rds")
+properties <- final_data$property_reference
+property_crosswalk <- final_data$property_crosswalk
+tract_counts <- final_data$tract_counts
+zcta_counts <- final_data$zcta_counts
+county_counts <- final_data$county_counts
+tract_history <- final_data$tract_history
+zcta_history <- final_data$zcta_history
+classifications <- final_data$tract_classifications
+variable_dictionary <- final_data$variable_dictionary
+spec_years <- range(tract_history$year, na.rm = TRUE)
+```
+
+## Executive Summary
+
+This report analyzes demographic and housing trends for the areas containing the **`r nrow(properties)` properties**. It starts at the **county** level, steps down to **ZCTA**, and finishes with a concise **tract** view limited to tracts that actually contain our assets. ACS **5-year** data (2013–`r max(spec_years)`) and the latest **1-year** county data (through 2023) are inflation-adjusted to 2023 dollars; directional signals respect ACS margins of error (MOE) at the ~90% confidence level.
+
+### Key Findings
+
+```{r summary_stats}
+prop_joined <- properties %>%
+  left_join(classifications, by = c("tract_geoid" = "GEOID"))
+
+summary_counts <- prop_joined %>%
+  count(classification, name = "n_props") %>%
+  mutate(pct = n_props / sum(n_props))
+
+growth_pct <- summary_counts %>% filter(classification == "Growth") %>% pull(pct)
+growth_pct <- ifelse(length(growth_pct) == 0, 0, growth_pct)
+```
+
+* **`r percent(growth_pct)`** of the portfolio is located in **Growth** tracts (significant population + real income gains with stable/improving vacancy).
+* County metrics use the latest ACS 1-year data; tract/ZCTA use ACS 5-year series; all monetary values in **2023 dollars**.
+
+## Spec Compliance Snapshot
+
+- ACS **5-year** for tract/ZCTA (2013–`r max(spec_years)`); **1-year** county through 2023.
+- MOEs propagated into derived metrics; significance tested at ~90% confidence.
+- Custom age buckets (<18, 18–25, 26–55, 56–65, 65+); inflation-adjusted income/rent.
+
+## Portfolio Map
+
+```{r map}
+pal <- colorFactor(c("green", "orange", "red"), domain = c("Growth", "Stable", "Weakening"))
+
+leaflet(prop_joined) %>%
+  addProviderTiles(providers$CartoDB.Positron) %>%
+  addCircleMarkers(
+    ~long, ~lat,
+    color = ~ pal(classification),
+    radius = 6,
+    fillOpacity = 0.8,
+    popup = ~ paste0(
+      "<b>", full_address, "</b><br>",
+      "Tract: ", tract_geoid, "<br>",
+      "Class: ", classification, "<br>",
+      "Pop Change: ", percent(pop_change, 0.1), "<br>",
+      "Real Income Change: ", percent(income_change_real, 0.1)
+    )
+  ) %>%
+  addLegend("bottomright", pal = pal, values = ~classification, title = "Neighborhood Trend")
+```
+
+## Property–Census Crosswalk & Counts
+
+```{r crosswalk}
+datatable(property_crosswalk, options = list(pageLength = 10), caption = "Property-to-Census crosswalk (tract, ZCTA, county)")
+```
+
+```{r crosswalk_counts}
+datatable(tract_counts, options = list(pageLength = 10), caption = "Property count by Census tract")
+datatable(zcta_counts, options = list(pageLength = 10), caption = "Property count by ZCTA")
+datatable(county_counts, options = list(pageLength = 10), caption = "Property count by county")
+```
+
+## County View (Jefferson County, AL)
+
+```{r county_prep}
+county_panel <- final_data$county_history_1yr
+if (nrow(county_panel) == 0) county_panel <- final_data$county_history_5yr
+county_year_breaks <- scales::pretty_breaks()(range(county_panel$year))
+```
+
+```{r county_plots}
+county_panel %>%
+  ggplot(aes(x = year, y = total_popE)) +
+  geom_line(color = "#1b9e77", size = 1.1) +
+  scale_x_continuous(breaks = county_year_breaks, labels = scales::number_format(accuracy = 1)) +
+  theme_minimal() +
+  labs(title = "County Population (ACS, latest available)", y = "Population", x = "Year")
+
+county_panel %>%
+  ggplot(aes(x = year, y = med_income_real)) +
+  geom_line(color = "#7570b3", size = 1.1) +
+  scale_y_continuous(labels = dollar) +
+  scale_x_continuous(breaks = county_year_breaks, labels = scales::number_format(accuracy = 1)) +
+  theme_minimal() +
+  labs(title = "County Real Median Household Income (2023$)", y = "Income", x = "Year")
+
+county_panel %>%
+  ggplot(aes(x = year, y = vacancy_rate)) +
+  geom_line(color = "#e7298a", size = 1.1) +
+  scale_y_continuous(labels = percent) +
+  scale_x_continuous(breaks = county_year_breaks, labels = scales::number_format(accuracy = 1)) +
+  theme_minimal() +
+  labs(title = "County Housing Vacancy Rate", y = "Vacancy Rate", x = "Year")
+```
+
+## ZCTA (Zip) View
+
+```{r zcta_prep}
+relevant_zips <- properties$zcta5 %>% coalesce(properties$zip) %>% unique() %>% na.omit()
+zcta_panel <- zcta_history %>% filter(GEOID %in% relevant_zips)
+latest_zcta <- zcta_panel %>% group_by(GEOID) %>% filter(year == max(year)) %>%
+  select(GEOID, med_income_real, vacancy_rate, pct_bachelors, poverty_rate, med_rent_real)
+```
+
+```{r zcta_plots}
+if (nrow(zcta_panel) > 0) {
+  zcta_breaks <- scales::pretty_breaks()(range(zcta_panel$year))
+
+  zcta_panel %>%
+    ggplot(aes(x = year, y = med_income_real, group = GEOID, color = GEOID)) +
+    geom_line(alpha = 0.6, size = 1) +
+    scale_y_continuous(labels = dollar) +
+    scale_x_continuous(breaks = zcta_breaks, labels = scales::number_format(accuracy = 1)) +
+    theme_minimal() +
+    guides(color = "none") +
+    labs(title = "Zip-Level Real Median Income (2023$)", y = "Income", x = "Year")
+
+  zcta_panel %>%
+    ggplot(aes(x = year, y = vacancy_rate, group = GEOID, color = GEOID)) +
+    geom_line(alpha = 0.6, size = 1) +
+    scale_y_continuous(labels = percent) +
+    scale_x_continuous(breaks = zcta_breaks, labels = scales::number_format(accuracy = 1)) +
+    theme_minimal() +
+    guides(color = "none") +
+    labs(title = "Zip-Level Vacancy Rate", y = "Vacancy Rate", x = "Year")
+}
+```
+
+```{r zcta_table}
+if (nrow(zcta_panel) > 0) {
+  latest_zcta %>%
+    mutate(
+      med_income_real = dollar(med_income_real),
+      med_rent_real = dollar(med_rent_real),
+      vacancy_rate = percent(vacancy_rate, 0.1),
+      pct_bachelors = percent(pct_bachelors, 0.1),
+      poverty_rate = percent(poverty_rate, 0.1)
+    ) %>%
+    datatable(options = list(pageLength = 10), caption = "Latest available ZCTA metrics")
+}
+```
+
+## Tract View (Concise)
+
+```{r tract_prep}
+relevant_tracts <- unique(prop_joined$tract_geoid)
+tract_panel <- tract_history %>% filter(GEOID %in% relevant_tracts)
+tract_year_breaks <- scales::pretty_breaks()(range(tract_panel$year))
+tract_summary <- final_data$tract_classifications %>%
+  filter(GEOID %in% relevant_tracts) %>%
+  left_join(tract_panel %>% group_by(GEOID) %>% summarise(latest_year = max(year)), by = "GEOID") %>%
+  arrange(classification, desc(pop_cagr))
+
+spotlight <- tract_summary %>%
+  arrange(desc(pop_cagr)) %>%
+  slice_head(n = 3)
+spotlight_panel <- tract_panel %>% filter(GEOID %in% spotlight$GEOID)
+```
+
+### Tract Summary Table
+
+```{r tract_table}
+tract_summary %>%
+  transmute(
+    Tract = GEOID,
+    Classification = classification,
+    `Pop CAGR` = percent(pop_cagr, 0.1),
+    `Income CAGR (real)` = percent(income_cagr, 0.1),
+    `Vacancy Δ` = percent(vacancy_change, 0.1),
+    `Pop Change Sig` = ifelse(pop_change_sig, "Yes", "No"),
+    `Income Change Sig` = ifelse(income_change_sig, "Yes", "No"),
+    `Vacancy Change Sig` = ifelse(vacancy_change_sig, "Yes", "No")
+  ) %>%
+  datatable(options = list(pageLength = 10), caption = "Tract-level classification and trend significance")
+```
+
+### Spotlight Tracts (top movers)
+
+```{r tract_spotlight_plots}
+if (nrow(spotlight_panel) > 0) {
+  spotlight_panel %>%
+    ggplot(aes(x = year, y = total_popE, color = GEOID)) +
+    geom_line(size = 1.1) +
+    scale_x_continuous(breaks = tract_year_breaks, labels = scales::number_format(accuracy = 1)) +
+    theme_minimal() +
+    labs(title = "Population (Spotlight Tracts)", y = "Population", x = "Year", color = "Tract")
+
+  spotlight_panel %>%
+    ggplot(aes(x = year, y = med_income_real, color = GEOID)) +
+    geom_line(size = 1.1) +
+    scale_y_continuous(labels = dollar) +
+    scale_x_continuous(breaks = tract_year_breaks, labels = scales::number_format(accuracy = 1)) +
+    theme_minimal() +
+    labs(title = "Real Median Income (Spotlight Tracts)", y = "Income (2023$)", x = "Year", color = "Tract")
+}
+```
+
+## Age Composition (Tract-Level, Portfolio Tracts Only)
+
+```{r age_comp}
+if (nrow(tract_panel) > 0) {
+  age_agg <- tract_panel %>%
+    group_by(year) %>%
+    summarise(
+      pct_under18 = mean(pct_age_under18, na.rm = TRUE),
+      pct_18_25 = mean(pct_age_18_25, na.rm = TRUE),
+      pct_26_55 = mean(pct_age_26_55, na.rm = TRUE),
+      pct_56_65 = mean(pct_age_56_65, na.rm = TRUE),
+      pct_65plus = mean(pct_age_65plus, na.rm = TRUE)
+    ) %>%
+    pivot_longer(-year, names_to = "bucket", values_to = "value")
+
+  ggplot(age_agg, aes(x = year, y = value, color = bucket, group = bucket)) +
+    geom_line(size = 1.1) +
+    scale_y_continuous(labels = percent) +
+    scale_x_continuous(breaks = tract_year_breaks, labels = scales::number_format(accuracy = 1)) +
+    theme_minimal() +
+    labs(title = "Average Age Composition (Portfolio Tracts)", y = "Percent", x = "Year", color = "Age Bucket")
+}
+```
+
+## Education & Economic Status (Tract-Level, Portfolio Tracts Only)
+
+```{r edu_econ}
+if (nrow(tract_panel) > 0) {
+  edu_pov <- tract_panel %>%
+    group_by(year) %>%
+    summarise(
+      pct_bachelors = mean(pct_bachelors, na.rm = TRUE),
+      pct_hs_or_higher = mean(pct_hs_or_higher, na.rm = TRUE),
+      poverty_rate = mean(poverty_rate, na.rm = TRUE),
+      unemployment_rate = mean(unemployment_rate, na.rm = TRUE),
+      med_income_real = mean(med_income_real, na.rm = TRUE)
+    )
+
+  edu_long <- edu_pov %>%
+    select(year, pct_hs_or_higher, pct_bachelors) %>%
+    pivot_longer(-year, names_to = "metric", values_to = "value")
+
+  ggplot(edu_long, aes(x = year, y = value, color = metric)) +
+    geom_line(size = 1.1) +
+    scale_y_continuous(labels = percent) +
+    scale_x_continuous(breaks = tract_year_breaks, labels = scales::number_format(accuracy = 1)) +
+    theme_minimal() +
+    labs(title = "Education Attainment (Portfolio Tracts)", y = "Percent", x = "Year", color = "Metric")
+
+  econ_long <- edu_pov %>%
+    select(year, poverty_rate, unemployment_rate) %>%
+    pivot_longer(-year, names_to = "metric", values_to = "value")
+
+  ggplot(econ_long, aes(x = year, y = value, color = metric)) +
+    geom_line(size = 1.1) +
+    scale_y_continuous(labels = percent) +
+    scale_x_continuous(breaks = tract_year_breaks, labels = scales::number_format(accuracy = 1)) +
+    theme_minimal() +
+    labs(title = "Poverty & Unemployment (Portfolio Tracts)", y = "Percent", x = "Year", color = "Metric")
+
+  ggplot(edu_pov, aes(x = year, y = med_income_real)) +
+    geom_line(color = "#1f78b4", size = 1.1) +
+    scale_y_continuous(labels = dollar) +
+    scale_x_continuous(breaks = tract_year_breaks, labels = scales::number_format(accuracy = 1)) +
+    theme_minimal() +
+    labs(title = "Average Real Median Household Income (Portfolio Tracts)", y = "Income (2023$)", x = "Year")
+}
+```
+
+## Property Performance vs. Market
+
+```{r performance_table}
+prop_joined %>%
+  select(Address = address_raw, Class = classification, `Acq Cost` = acquisition_cost, `FMV` = fair_market_value) %>%
+  datatable()
+```
+
+## Methodology
+
+* **Data Source**: US Census Bureau, ACS 5-year (tract/ZCTA) 2013–`r max(spec_years)`; ACS 1-year county through 2023.
+* **Inflation Adjustment**: All monetary values adjusted to 2023 dollars using CPI-U annual averages.
+* **MOE Handling**: ACS MOEs propagated through ratios (SE = MOE/1.645); trend direction requires differences to exceed combined MOE.
+* **Classification**:
+  * **Growth**: Statistically significant population increase and ≥1% real income CAGR with stable or declining vacancy.
+  * **Weakening**: Significant population or income decline, or significant vacancy increase (>1 pp).
+  * **Stable**: No statistically significant movement on core indicators.
+* **Custom Age Buckets**: Allocation from ACS 5-year age bands to <18, 18–25, 26–55, 56–65, 65+.
+* **Variable Catalog**:
+
+```{r var_table, results='asis'}
+if (nrow(variable_dictionary) > 0) {
+  variable_dictionary %>%
+    knitr::kable()
+}
+```
