@@ -3,47 +3,25 @@ library(tidyverse)
 library(tidycensus)
 library(sf)
 
-# Load API Key
 if (file.exists(".env")) readRenviron(".env")
+options(tigris_use_cache = TRUE)
 
-# 1. Identify Target Geographies
+# 1. Identify Target Geographies from the property reference file
 properties <- read_rds("data/processed/property_master_list.rds")
 
-# Function to get FIPS from Lat/Lon if missing
-get_fips_from_latlon <- function(df) {
-  # Convert to SF
-  sf_df <- st_as_sf(df, coords = c("long", "lat"), crs = 4326)
+target_tracts <- properties$tract_geoid |> na.omit() |> unique()
+target_counties <- properties$county_fips |> na.omit() |> unique()
+target_counties_full <- properties |>
+  filter(!is.na(county_fips)) |>
+  mutate(state_fips = ifelse(is.na(state_fips), "01", state_fips)) |>
+  transmute(county_geoid = paste0(state_fips, county_fips)) |>
+  distinct() |>
+  pull(county_geoid)
+target_zctas <- properties$zcta5 |> coalesce(properties$zip) |> na.omit() |> unique()
 
-  # Download Tracts for AL (assuming all in AL for now, based on PDF)
-  al_tracts <- tigris::tracts(state = "AL", cb = TRUE, year = 2022) %>%
-    select(GEOID, COUNTYFP, TRACTCE)
+message(paste("Found", length(target_tracts), "unique tracts,", length(target_counties), "counties, and", length(target_zctas), "zctas/zips."))
 
-  # Ensure CRS match
-  sf_df <- st_transform(sf_df, st_crs(al_tracts))
-
-  joined <- st_join(sf_df, al_tracts)
-  return(joined)
-}
-
-message("Spatially joining properties to Census Tracts...")
-properties_sf <- get_fips_from_latlon(properties)
-
-target_tracts <- unique(properties_sf$GEOID)
-target_counties <- unique(properties_sf$COUNTYFP)
-target_counties_full <- unique(paste0("01", properties_sf$COUNTYFP)) # AL is 01
-
-# Identify Target ZCTAs
-# We can get ZCTAs from the address or spatial join.
-# The address has zip codes.
-target_zips <- properties$address_raw %>%
-  str_extract("\\d{5}$") %>%
-  unique() %>%
-  na.omit()
-
-message(paste("Found", length(target_tracts), "unique tracts,", length(target_counties), "counties, and", length(target_zips), "zips."))
-
-# 2. Define Variables
-# Expanded list for deep analysis
+# 2. Define Variables aligned with the white paper spec (demographics, housing, socioeconomics)
 acs_vars <- c(
   total_pop = "B01003_001",
   med_income = "B19013_001",
@@ -53,12 +31,74 @@ acs_vars <- c(
   renter_occupied = "B25003_003",
   owner_occupied = "B25003_002",
   med_rent = "B25064_001",
-
-  # Age
   median_age = "B01002_001",
+
+  # Age buckets (male)
+  age_m_under5 = "B01001_003",
+  age_m_5_9 = "B01001_004",
+  age_m_10_14 = "B01001_005",
+  age_m_15_17 = "B01001_006",
+  age_m_18_19 = "B01001_007",
+  age_m_20 = "B01001_008",
+  age_m_21 = "B01001_009",
+  age_m_22_24 = "B01001_010",
+  age_m_25_29 = "B01001_011",
+  age_m_30_34 = "B01001_012",
+  age_m_35_39 = "B01001_013",
+  age_m_40_44 = "B01001_014",
+  age_m_45_49 = "B01001_015",
+  age_m_50_54 = "B01001_016",
+  age_m_55_59 = "B01001_017",
+  age_m_60_61 = "B01001_018",
+  age_m_62_64 = "B01001_019",
+  age_m_65_66 = "B01001_020",
+  age_m_67_69 = "B01001_021",
+  age_m_70_74 = "B01001_022",
+  age_m_75_79 = "B01001_023",
+  age_m_80_84 = "B01001_024",
+  age_m_85_plus = "B01001_025",
+
+  # Age buckets (female)
+  age_f_under5 = "B01001_027",
+  age_f_5_9 = "B01001_028",
+  age_f_10_14 = "B01001_029",
+  age_f_15_17 = "B01001_030",
+  age_f_18_19 = "B01001_031",
+  age_f_20 = "B01001_032",
+  age_f_21 = "B01001_033",
+  age_f_22_24 = "B01001_034",
+  age_f_25_29 = "B01001_035",
+  age_f_30_34 = "B01001_036",
+  age_f_35_39 = "B01001_037",
+  age_f_40_44 = "B01001_038",
+  age_f_45_49 = "B01001_039",
+  age_f_50_54 = "B01001_040",
+  age_f_55_59 = "B01001_041",
+  age_f_60_61 = "B01001_042",
+  age_f_62_64 = "B01001_043",
+  age_f_65_66 = "B01001_044",
+  age_f_67_69 = "B01001_045",
+  age_f_70_74 = "B01001_046",
+  age_f_75_79 = "B01001_047",
+  age_f_80_84 = "B01001_048",
+  age_f_85_plus = "B01001_049",
+
+  # Race & ethnicity (composition)
+  race_total = "B03002_001",
+  race_white = "B03002_003",
+  race_black = "B03002_004",
+  race_asian = "B03002_006",
+  race_other = "B03002_007",
+  race_two_or_more = "B03002_008",
+  race_hispanic = "B03002_012",
 
   # Education (Universe: Pop 25+)
   edu_total = "B15003_001",
+  edu_hs = "B15003_017",
+  edu_hs_ged = "B15003_018",
+  edu_some_college = "B15003_019",
+  edu_some_college_2 = "B15003_020",
+  edu_assoc = "B15003_021",
   edu_bachelors = "B15003_022",
   edu_masters = "B15003_023",
   edu_prof = "B15003_024",
@@ -71,15 +111,24 @@ acs_vars <- c(
   # Employment (Universe: Pop 16+)
   emp_total = "B23025_001",
   emp_labor_force = "B23025_002",
-  emp_unemployed = "B23025_005"
+  emp_unemployed = "B23025_005",
+
+  # Commuting/transportation
+  commute_total = "B08301_001",
+  commute_drive_alone = "B08301_003",
+  commute_carpool = "B08301_004",
+  commute_public = "B08301_010",
+  commute_other = "B08301_019"
 )
 
-# 3. Fetch Data Function with Caching
-fetch_acs_data <- function(years, geography, survey = "acs5") {
+# 3. Fetch Data Function with Caching (5-year ACS for tract-level comparisons)
+years <- 2013:2022
+years_acs1 <- setdiff(years, 2020) # 2020 1-year ACS not released (experimental only)
+
+fetch_acs_data <- function(years, geography, survey = "acs5", state = NULL, zcta = NULL) {
   map_dfr(years, function(yr) {
-    # Define Cache Path
     cache_dir <- "data/raw/acs_cache"
-    if (!dir.exists(cache_dir)) dir.create(cache_dir, recursive = TRUE)
+    dir.create(cache_dir, recursive = TRUE, showWarnings = FALSE)
     cache_file <- file.path(cache_dir, paste0("acs_", geography, "_", survey, "_", yr, ".rds"))
 
     if (file.exists(cache_file)) {
@@ -88,68 +137,53 @@ fetch_acs_data <- function(years, geography, survey = "acs5") {
     }
 
     message(paste("Fetching", survey, yr, geography, "..."))
-    tryCatch(
-      {
-        # For ZCTA, we can't filter by state in get_acs (it's national).
-        # We fetch all (or use state if supported for that geo, ZCTA usually isn't)
-        # Actually tidycensus supports state for ZCTA since v1.0?
-        # Let's try state="AL" for all, if it fails for ZCTA we handle it.
+    args <- list(
+      geography = geography,
+      variables = acs_vars,
+      year = yr,
+      survey = survey,
+      output = "wide"
+    )
 
-        args <- list(
-          geography = geography,
-          variables = acs_vars,
-          year = yr,
-          survey = survey,
-          output = "wide"
-        )
+    if (!is.null(state)) args$state <- state
+    if (!is.null(zcta)) args$zcta <- zcta
 
-        if (geography != "zcta") {
-          args$state <- "AL"
-        }
-
-        data <- do.call(get_acs, args) %>%
-          mutate(year = yr, survey = survey)
-
-        write_rds(data, cache_file)
-        return(data)
-      },
+    data <- tryCatch(
+      do.call(get_acs, args),
       error = function(e) {
-        message(paste("Error fetching", yr, ":", e$message))
-        return(NULL)
+        message(paste("Error fetching", yr, geography, ":", e$message))
+        return(tibble())
       }
     )
+
+    if (is.null(data) || nrow(data) == 0) return(tibble())
+
+    data <- data |> mutate(year = yr, survey = survey)
+    write_rds(data, cache_file)
+    data
   })
 }
 
 # 4. Execute Fetches
-# Tracts (5-year)
-message("Fetching Tract Data (5-Year)...")
-tract_data <- fetch_acs_data(2013:2023, "tract", "acs5") %>%
+message("Fetching Tract Data (5-Year, ACS)...")
+tract_data <- fetch_acs_data(years, "tract", "acs5", state = "AL") |>
   filter(GEOID %in% target_tracts)
 
-# Counties (5-year & 1-year)
-message("Fetching County Data (5-Year)...")
-county_data_5yr <- fetch_acs_data(2013:2023, "county", "acs5") %>%
+message("Fetching County Data (5-Year, ACS)...")
+county_data_5yr <- fetch_acs_data(years, "county", "acs5", state = "AL") |>
   filter(GEOID %in% target_counties_full)
 
-message("Fetching County Data (1-Year)...")
-county_data_1yr <- fetch_acs_data(2013:2023, "county", "acs1") %>%
+message("Fetching County Data (1-Year, ACS) for context only...")
+county_data_1yr <- fetch_acs_data(years_acs1, "county", "acs1", state = "AL") |>
   filter(GEOID %in% target_counties_full)
 
-# ZCTAs (5-year)
-# Note: ZCTA data is heavy if fetched nationally.
-# We will filter immediately after fetch if we can't filter in API.
-# tidycensus 'zcta' usually requires fetching all or a specific zcta list?
-# get_acs(geography = "zcta", zcta = target_zips) is supported in newer versions?
-# Let's try fetching specific ZCTAs if possible to save bandwidth,
-# otherwise we fetch state if allowed, or national.
-# Actually, for 'zcta', 'state' argument is often ignored or deprecated.
-# Best approach: try passing `zcta = target_zips` if supported, else fetch all.
-# We'll use a modified fetch for ZCTA to be safe.
+message("Fetching ZCTA Data (5-Year, ACS)...")
+fetch_zcta_data <- function(years, target_zctas) {
+  if (length(target_zctas) == 0) return(tibble())
 
-fetch_zcta_data <- function(years) {
   map_dfr(years, function(yr) {
     cache_dir <- "data/raw/acs_cache"
+    dir.create(cache_dir, recursive = TRUE, showWarnings = FALSE)
     cache_file <- file.path(cache_dir, paste0("acs_zcta_acs5_", yr, ".rds"))
 
     if (file.exists(cache_file)) {
@@ -158,41 +192,44 @@ fetch_zcta_data <- function(years) {
     }
 
     message(paste("Fetching ZCTA", yr, "..."))
-    tryCatch(
-      {
-        # Fetch ALL ZCTAs and filter locally
-        # This is safer for API stability, though larger download.
-        data <- get_acs(
-          geography = "zcta",
-          variables = acs_vars,
-          year = yr,
-          survey = "acs5",
-          output = "wide"
-        ) %>%
-          mutate(year = yr, survey = "acs5") %>%
-          filter(GEOID %in% target_zips)
-
-        write_rds(data, cache_file)
-        return(data)
-      },
+    data <- tryCatch(
+      get_acs(
+        geography = "zcta",
+        variables = acs_vars,
+        year = yr,
+        survey = "acs5",
+        output = "wide",
+        zcta = target_zctas
+      ),
       error = function(e) {
-        message(paste("Error fetching ZCTA", yr, ":", e$message))
-        return(NULL)
+        message("ZCTA fetch failed for year ", yr, " (likely unsupported 'zcta' parameter on this tidycensus version). Skipping ZCTA to avoid full national download.")
+        return(tibble())
       }
     )
+
+    if (is.null(data) || nrow(data) == 0) return(tibble())
+
+    data <- data |>
+      mutate(year = yr, survey = "acs5") |>
+      dplyr::filter(GEOID %in% target_zctas)
+
+    write_rds(data, cache_file)
+    data
   })
 }
 
-message("Fetching ZCTA Data (5-Year)...")
-zcta_data <- fetch_zcta_data(2013:2023)
+zcta_data <- fetch_zcta_data(years, target_zctas)
 
 # 5. Save Raw Data
-write_rds(list(
-  tract = tract_data,
-  county_5yr = county_data_5yr,
-  county_1yr = county_data_1yr,
-  zcta = zcta_data,
-  properties_sf = properties_sf
-), "data/processed/acs_raw_data.rds")
+write_rds(
+  list(
+    tract = tract_data,
+    county_5yr = county_data_5yr,
+    county_1yr = county_data_1yr,
+    zcta = zcta_data,
+    properties = properties
+  ),
+  "data/processed/acs_raw_data.rds"
+)
 
 message("ACS Data Collection Complete.")
