@@ -1,6 +1,6 @@
 White Paper Specifications
 
-This will be a RMarkdown file that pulling data from ACS using the Tidycensus package and perform a indepth analysis of the demographic and housing trends of the properties in the portfolio using community best practices and following the tidyverse style guide. 
+This white paper will be generated as an R Markdown report that pulls data from the American Community Survey (ACS) using the `tidycensus` package and performs an in‑depth analysis of the demographic and housing trends of the properties in the portfolio, following community best practices and the tidyverse style guide. 
 
 Demographic & Housing Trend Intelligence for Portfolio Performance Evaluation
 
@@ -14,6 +14,15 @@ Scope
 
 The analysis covers all properties held by Funds 1, 2, and 3 and maps each asset to its corresponding Census geography. Time-series ACS data will be used to establish neighborhood-level demographic trajectories over the past decade and compare them with property-level operating performance.
 
+Data Sources & Time Horizon
+
+The core inputs are:
+	•	Property portfolio data, including the Obelisk Portfolio – Cost & Equity Snapshot (33 properties such as 9645 9th Ave N, 4129 Avenue Q, 4011 43rd Ave N, etc.), with acquisition cost, renovation cost, total cost, Sy’s fair-market value, equity, and ROI tier.
+	•	ACS 5-year estimates (e.g., 2013–2017 through 2019–2023) at the census tract level, retrieved via `tidycensus::get_acs`, with both point estimates and Census-provided margins of error stored for each variable.
+	•	County-level ACS aggregates for context and benchmarking.
+
+Where possible, income- and rent-related variables will be inflation-adjusted to constant dollars so trends represent real (not nominal) change.
+
 ⸻
 
 Analytical Framework
@@ -22,6 +31,7 @@ Analytical Framework
 
 Goal: Identify the exact Census statistical area in which each property is located.
 	•	Every property address is geocoded to latitude and longitude.
+	•	Geocoding uses a consistent provider (e.g., the Census geocoder or a commercial API) with manual QA for ambiguous or low-confidence matches.
 	•	Each coordinate pair is spatially joined to:
 	•	Census Tract
 	•	Census Block Group (optional, for finer granularity)
@@ -35,7 +45,7 @@ Deliverable: A master property reference file containing → property ID, fund I
 
 Goal: Build a longitudinal panel of demographic and housing indicators for each census tract that contains our assets, and optionally for the full county for market context.
 
-For each year (or rolling 5-year ACS window) the following metrics are collected:
+For each reference year (using ACS 5-year estimates retrieved via `tidycensus::get_acs`) the following metrics are collected, along with their margins of error:
 
 Demographics
 	•	Total population
@@ -53,6 +63,11 @@ Housing Market Indicators
 	•	Vacancy rate
 	•	Median rent
 	•	Indicators of rental cost burden (optional)
+
+Best-practice handling of ACS data:
+	•	Track and retain ACS margins of error for all estimates; use `tidycensus` MOE helpers (e.g., `moe_sum`, `moe_prop`, `moe_ratio`) when deriving new indicators from base variables, following Census Bureau guidance.
+	•	Inflation-adjust income- and rent-related variables to constant dollars (e.g., using CPI or BEA price indices) so time-series trends reflect real changes in purchasing power.
+	•	Avoid mixing ACS 1-year and 5-year products for the same analysis; use a consistent 5-year series for tract-level comparisons to reduce sampling noise.
 
 Outcome: A tract-level longitudinal dataset representing neighborhood change over time.
 
@@ -72,9 +87,11 @@ Education	Rising attainment	Declining attainment
 Median rent	Increasing in line with income	Decoupling from income / affordability stress
 
 A tract may be classified into interpretive clusters such as:
-	•	Growth Cluster: population inflow + income increase + improving occupancy
-	•	Stable Cluster: little movement across indicators
-	•	Weakening Cluster: population or income decline + rising vacancy
+	•	Growth Cluster: population inflow + income increase + improving occupancy (e.g., positive 10-year population CAGR, real median income growth ≥ ~1% annually, and falling vacancy)
+	•	Stable Cluster: little movement across indicators (e.g., all core indicators within approximately ±0.5% annual change and close to county medians)
+	•	Weakening Cluster: population or income decline + rising vacancy (e.g., population CAGR ≤ −0.5% or vacancy rate increase ≥ ~1 percentage point, especially with flat or declining real income)
+
+Classification should respect ACS uncertainty: treat changes as “rising” or “declining” only when they are statistically distinguishable from zero at approximately the 90% confidence level, using ACS margins of error and standard Census Bureau testing guidance.
 
 This provides a structural picture of the submarkets in which we operate.
 
@@ -85,6 +102,7 @@ This provides a structural picture of the submarkets in which we operate.
 Goal: Evaluate whether strong (or weak) neighborhood fundamentals align with asset performance.
 
 Asset-level KPIs are aggregated to the census tract and year:
+	•	Capital structure variables from the Obelisk Portfolio – Cost & Equity Snapshot (acquisition cost, renovation cost, total cost, Sy’s fair-market value, equity, and property-level ROI tier)
 	•	Average achieved rent
 	•	Rent growth
 	•	Average vacancy duration
@@ -131,6 +149,7 @@ Performance overlay panel	Tract-year dataset combining ACS + asset KPIs
 Tract classification	Growth / Stable / Weakening clusters with logic
 Visualization suite	Maps, time-series charts, KPI correlations
 Executive-ready narrative	Data-driven story of submarket positioning and portfolio strength
+Technical appendix	ACS variables, time horizon, MOE handling, inflation adjustments, and tract classification rules
 
 
 ⸻
@@ -153,6 +172,7 @@ The project is considered successful when:
 	•	Every property is precisely located within the census statistical geography.
 	•	A unified tract-year panel dataset exists for ACS + asset KPIs.
 	•	Neighborhood trends can be quantitatively linked to operating performance.
+	•	ACS variables, MOE handling, inflation adjustments, and tract classification thresholds are fully documented and reproducible.
 	•	Insights can be summarized for decision-makers in one sentence, such as:
 
 “Our rental portfolio is overwhelmingly concentrated in rapidly improving neighborhoods, and the assets in those neighborhoods outperform the rest of the market.”
