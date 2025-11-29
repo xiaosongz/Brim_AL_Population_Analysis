@@ -25,7 +25,10 @@ zcta_counts <- final_data$zcta_counts
 county_counts <- final_data$county_counts
 tract_history <- final_data$tract_history
 zcta_history <- final_data$zcta_history
+zcta_history_full <- final_data$zcta_history_full
 classifications <- final_data$tract_classifications
+zcta_classifications <- final_data$zcta_classifications
+zcta_classifications_full <- final_data$zcta_classifications_full
 variable_dictionary <- final_data$variable_dictionary
 spec_years <- range(tract_history$year, na.rm = TRUE)
 ```
@@ -80,6 +83,97 @@ leaflet(prop_joined) %>%
   addLegend("bottomright", pal = pal, values = ~classification, title = "Neighborhood Trend")
 ```
 
+## ZCTA Classification Map (Jefferson County)
+
+```{r zcta_choropleth_leaflet}
+if (nrow(zcta_classifications_full) > 0) {
+  library(tigris)
+  options(tigris_use_cache = TRUE)
+
+  county_geom <- counties(state = "AL", cb = TRUE, year = 2022, class = "sf") %>%
+    filter(COUNTYFP == "073") %>%
+    st_transform(4326)
+
+  zcta_geom <- zctas(cb = TRUE, year = 2020, class = "sf") %>%
+    st_transform(4326) %>%
+    st_make_valid() %>%
+    st_collection_extract("POLYGON") %>%
+    st_intersection(county_geom) %>%
+    select(geometry, GEOID = ZCTA5CE20)
+
+  zcta_map_df <- zcta_geom %>%
+    left_join(zcta_classifications_full, by = "GEOID")
+
+  pal_zcta <- colorFactor(
+    palette = c(Growth = "#2ca25f", Stable = "#fdae6b", Weakening = "#de2d26"),
+    domain = c("Growth", "Stable", "Weakening"),
+    na.color = "grey80"
+  )
+
+  leaflet(zcta_map_df) %>%
+    addProviderTiles(providers$CartoDB.Positron) %>%
+    addPolygons(
+      fillColor = ~pal_zcta(classification),
+      color = "white",
+      weight = 1,
+      opacity = 0.7,
+      fillOpacity = 0.7,
+      label = ~paste0("ZCTA ", GEOID, "<br>Class: ", classification %||% "No Data"),
+      highlightOptions = highlightOptions(weight = 2, color = "#666", fillOpacity = 0.9, bringToFront = TRUE)
+    ) %>%
+    addPolygons(
+      data = county_geom,
+      fill = FALSE,
+      color = "black",
+      weight = 2,
+      opacity = 0.8
+    ) %>%
+    addLegend("bottomright", pal = pal_zcta, values = zcta_map_df$classification, title = "ZCTA Classification")
+}
+```
+
+### ZCTA Population Change (Last Decade)
+
+```{r zcta_pop_change_map}
+if (nrow(zcta_history_full) > 0) {
+  start_yr <- min(zcta_history_full$year, na.rm = TRUE)
+  end_yr <- max(zcta_history_full$year, na.rm = TRUE)
+
+  zcta_pop_change <- zcta_history_full %>%
+    filter(year %in% c(start_yr, end_yr)) %>%
+    select(GEOID, year, total_popE) %>%
+    pivot_wider(names_from = year, values_from = total_popE, names_prefix = "yr_") %>%
+    mutate(
+      pop_change_pct = (get(paste0("yr_", end_yr)) - get(paste0("yr_", start_yr))) / get(paste0("yr_", start_yr))
+    )
+
+  zcta_geom <- zctas(cb = TRUE, year = 2020, class = "sf") %>%
+    st_transform(4326) %>%
+    st_make_valid() %>%
+    st_collection_extract("POLYGON") %>%
+    st_intersection(counties(state = "AL", cb = TRUE, year = 2022, class = "sf") %>% filter(COUNTYFP == "073") %>% st_transform(4326)) %>%
+    select(geometry, GEOID = ZCTA5CE20)
+
+  zcta_map_change <- zcta_geom %>%
+    left_join(zcta_pop_change, by = "GEOID")
+
+  pal_change <- colorNumeric("RdYlGn", domain = zcta_map_change$pop_change_pct, na.color = "grey80")
+
+  leaflet(zcta_map_change) %>%
+    addProviderTiles(providers$CartoDB.Positron) %>%
+    addPolygons(
+      fillColor = ~pal_change(pop_change_pct),
+      color = "white",
+      weight = 1,
+      opacity = 0.7,
+      fillOpacity = 0.7,
+      label = ~paste0("ZCTA ", GEOID, "<br>Pop Change: ", percent(pop_change_pct, 0.1)),
+      highlightOptions = highlightOptions(weight = 2, color = "#666", fillOpacity = 0.9, bringToFront = TRUE)
+    ) %>%
+    addLegend("bottomright", pal = pal_change, values = zcta_map_change$pop_change_pct, title = "Pop Change (Decade)", labFormat = labelFormat(suffix = "%", transform = function(x) x * 100))
+}
+```
+
 ## Property–Census Crosswalk & Counts
 
 ```{r crosswalk}
@@ -130,6 +224,7 @@ county_panel %>%
 ```{r zcta_prep}
 relevant_zips <- properties$zcta5 %>% coalesce(properties$zip) %>% unique() %>% na.omit()
 zcta_panel <- zcta_history %>% filter(GEOID %in% relevant_zips)
+zcta_full_panel <- zcta_history_full
 latest_zcta <- zcta_panel %>% group_by(GEOID) %>% filter(year == max(year)) %>%
   select(GEOID, med_income_real, vacancy_rate, pct_bachelors, poverty_rate, med_rent_real)
 ```
@@ -169,6 +264,38 @@ if (nrow(zcta_panel) > 0) {
       poverty_rate = percent(poverty_rate, 0.1)
     ) %>%
     datatable(options = list(pageLength = 10), caption = "Latest available ZCTA metrics")
+}
+```
+
+### ZCTA Classification Map (Jefferson County)
+
+```{r zcta_choropleth}
+if (nrow(zcta_classifications) > 0) {
+  library(tigris)
+  options(tigris_use_cache = TRUE)
+
+  county_geom <- counties(state = "AL", cb = TRUE, year = 2022, class = "sf") %>%
+    filter(COUNTYFP == "073") %>%
+    st_transform(4326)
+
+  zcta_geom <- zctas(cb = TRUE, year = 2020, class = "sf") %>%
+    st_transform(4326) %>%
+    st_intersection(county_geom) %>%
+    select(geometry, GEOID = ZCTA5CE20)
+
+  zcta_map_df <- zcta_geom %>%
+    left_join(zcta_classifications_full, by = "GEOID") %>%
+    filter(!is.na(classification))
+
+  zcta_centroids <- st_point_on_surface(zcta_map_df)
+
+  ggplot() +
+    geom_sf(data = zcta_map_df, aes(fill = classification), color = "white", size = 0.2) +
+    geom_sf(data = county_geom, fill = NA, color = "black", size = 0.4) +
+    geom_sf_text(data = zcta_centroids, aes(label = GEOID), size = 2.8, color = "black") +
+    scale_fill_manual(values = c(Growth = "#2ca25f", Stable = "#fdae6b", Weakening = "#de2d26", `No Data` = "grey80"), na.value = "grey80") +
+    theme_minimal() +
+    labs(title = "ZCTA Classification (Jefferson County)", fill = "Classification")
 }
 ```
 

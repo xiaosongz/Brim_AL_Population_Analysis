@@ -7,6 +7,14 @@ if (file.exists(".env")) readRenviron(".env")
 # 1. Load Data
 acs_raw <- read_rds("data/processed/acs_raw_data.rds")
 properties <- read_rds("data/processed/property_master_list.rds")
+# Derive county ZCTAs (Jefferson County, AL)
+county_geom <- tigris::counties(state = "AL", cb = TRUE, year = 2022, class = "sf") %>%
+  dplyr::filter(COUNTYFP == "073") %>%
+  st_transform(4326)
+zcta_geom_full <- tigris::zctas(cb = TRUE, year = 2020, class = "sf") %>%
+  st_transform(4326)
+inter_mat <- st_intersects(zcta_geom_full, county_geom, sparse = FALSE)
+county_zctas <- zcta_geom_full$ZCTA5CE20[apply(inter_mat, 1, any)] %>% unique()
 
 # 2. Parse Financials from Property List
 parse_financials <- function(raw_line) {
@@ -216,8 +224,12 @@ county_data_5yr_processed <- process_acs(acs_raw$county_5yr)
 county_data_1yr_processed <- process_acs(acs_raw$county_1yr)
 zcta_data_processed <- process_acs(acs_raw$zcta) |>
   filter(GEOID %in% property_zctas)
+zcta_full_processed <- process_acs(acs_raw$zcta_full)
+if (!is.null(county_zctas) && length(county_zctas)) {
+  zcta_full_processed <- zcta_full_processed %>% filter(GEOID %in% county_zctas)
+}
 
-# 6. Classify Tracts (Growth/Stable/Weakening) with MOE-aware significance tests
+# 6. Classify areas (Growth/Stable/Weakening) with MOE-aware significance tests
 classify_tract <- function(df) {
   if (nrow(df) == 0) return(tibble())
 
@@ -277,6 +289,14 @@ tract_classifications <- tract_data_processed |>
   group_by(GEOID) |>
   group_split() |>
   map_dfr(classify_tract)
+zcta_classifications <- zcta_data_processed |>
+  group_by(GEOID) |>
+  group_split() |>
+  map_dfr(classify_tract)
+zcta_full_classifications <- zcta_full_processed |>
+  group_by(GEOID) |>
+  group_split() |>
+  map_dfr(classify_tract)
 
 # 7. Variable dictionary for transparency in the white paper
 variable_dictionary <- tribble(
@@ -306,7 +326,10 @@ final_data <- list(
   county_history_5yr = county_data_5yr_processed,
   county_history_1yr = county_data_1yr_processed,
   zcta_history = zcta_data_processed,
+  zcta_history_full = zcta_full_processed,
   tract_classifications = tract_classifications,
+  zcta_classifications = zcta_classifications,
+  zcta_classifications_full = zcta_full_classifications,
   variable_dictionary = variable_dictionary
 )
 

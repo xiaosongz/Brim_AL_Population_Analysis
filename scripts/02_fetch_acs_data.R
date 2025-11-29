@@ -2,6 +2,7 @@
 library(tidyverse)
 library(tidycensus)
 library(sf)
+library(tigris)
 
 if (file.exists(".env")) readRenviron(".env")
 options(tigris_use_cache = TRUE)
@@ -19,6 +20,16 @@ target_counties_full <- properties |>
   distinct() |>
   pull(county_geoid)
 target_zctas <- properties$zcta5 |> coalesce(properties$zip) |> na.omit() |> unique()
+jefferson_county <- tigris::counties(state = "AL", cb = TRUE, year = 2022, class = "sf") |>
+  filter(GEOID %in% target_counties_full) |>
+  st_transform(4326)
+zcta_geom_full <- tigris::zctas(cb = TRUE, year = 2020, class = "sf") |>
+  st_transform(4326)
+inter_mat <- st_intersects(zcta_geom_full, jefferson_county, sparse = FALSE)
+county_zctas <- zcta_geom_full$ZCTA5CE20[apply(inter_mat, 1, any)] |> unique()
+zcta_fetch_list <- county_zctas
+if (length(zcta_fetch_list) == 0) zcta_fetch_list <- target_zctas
+message(paste("County ZCTAs detected:", length(zcta_fetch_list)))
 
 message(paste("Found", length(target_tracts), "unique tracts,", length(target_counties), "counties, and", length(target_zctas), "zctas/zips."))
 
@@ -179,8 +190,8 @@ county_data_1yr <- fetch_acs_data(years_acs1, "county", "acs1", state = "AL") |>
   filter(GEOID %in% target_counties_full)
 
 message("Fetching ZCTA Data (5-Year, ACS)...")
-fetch_zcta_data <- function(years, target_zctas) {
-  if (length(target_zctas) == 0) return(tibble())
+fetch_zcta_data <- function(years, target_zctas = NULL) {
+  if (!is.null(target_zctas) && length(target_zctas) == 0) return(tibble())
 
   map_dfr(years, function(yr) {
     cache_dir <- "data/raw/acs_cache"
@@ -188,8 +199,15 @@ fetch_zcta_data <- function(years, target_zctas) {
     cache_file <- file.path(cache_dir, paste0("acs_zcta_acs5_", yr, ".rds"))
 
     if (!refresh_acs && file.exists(cache_file)) {
-      message(paste("Loading cached ZCTA", yr, "..."))
-      return(read_rds(cache_file))
+      cached <- read_rds(cache_file)
+      # If cache is incomplete (doesn't cover requested ZCTAs), refresh
+      covered <- if (is.null(target_zctas)) Inf else length(intersect(unique(cached$GEOID), target_zctas))
+      if (covered >= length(unique(target_zctas %||% character()))) {
+        message(paste("Loading cached ZCTA", yr, "..."))
+        return(cached)
+      } else {
+        message(paste("Cache for ZCTA", yr, "is incomplete; refreshing."))
+      }
     }
 
     message(paste("Fetching ZCTA", yr, "..."))
@@ -225,7 +243,7 @@ fetch_zcta_data <- function(years, target_zctas) {
     data <- data |>
       mutate(year = yr, survey = "acs5")
 
-    if (length(target_zctas)) {
+    if (!is.null(target_zctas) && length(target_zctas)) {
       data <- dplyr::filter(data, GEOID %in% target_zctas)
     }
 
@@ -236,6 +254,41 @@ fetch_zcta_data <- function(years, target_zctas) {
 
 zcta_data <- fetch_zcta_data(years, target_zctas)
 
+# Full county ZCTA fetch (national then filtered)
+fetch_zcta_full <- function(years) {
+  map_dfr(years, function(yr) {
+    cache_dir <- "data/raw/acs_cache"
+    dir.create(cache_dir, recursive = TRUE, showWarnings = FALSE)
+    cache_file <- file.path(cache_dir, paste0("acs_zcta_full_acs5_", yr, ".rds"))
+
+    if (!refresh_acs && file.exists(cache_file)) {
+      message(paste("Loading cached full ZCTA", yr, "..."))
+      return(read_rds(cache_file))
+    }
+
+    message(paste("Fetching full ZCTA nationwide", yr, "..."))
+    data <- tryCatch(
+      get_acs(
+        geography = "zcta",
+        variables = acs_vars,
+        year = yr,
+        survey = "acs5",
+        output = "wide"
+      ),
+      error = function(e) {
+        message(paste("Error fetching full ZCTA", yr, ":", e$message))
+        return(tibble())
+      }
+    )
+
+    data <- data %>% mutate(year = yr, survey = "acs5")
+    write_rds(data, cache_file)
+    data
+  })
+}
+
+zcta_data_full <- fetch_zcta_full(years)
+
 # 5. Save Raw Data
 write_rds(
   list(
@@ -243,7 +296,9 @@ write_rds(
     county_5yr = county_data_5yr,
     county_1yr = county_data_1yr,
     zcta = zcta_data,
-    properties = properties
+    zcta_full = zcta_data_full,
+    properties = properties,
+    county_zctas = zcta_fetch_list
   ),
   "data/processed/acs_raw_data.rds"
 )
