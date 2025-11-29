@@ -1,6 +1,6 @@
 White Paper Specifications
 
-This white paper will be generated as an R Markdown report that pulls data from the American Community Survey (ACS) using the `tidycensus` package and performs an in‑depth analysis of the demographic and housing trends of the properties in the portfolio, following community best practices and the tidyverse style guide. 
+This white paper will be generated as an beautiful and stylish R Markdown report that pulls data from the American Community Survey (ACS) using the `tidycensus` package and performs an in‑depth analysis of the demographic and housing trends of the properties in the portfolio, following community best practices and the tidyverse style guide. 
 
 Demographic & Housing Trend Intelligence for Portfolio Performance Evaluation
 
