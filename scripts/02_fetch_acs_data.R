@@ -8,6 +8,7 @@ options(tigris_use_cache = TRUE)
 
 # 1. Identify Target Geographies from the property reference file
 properties <- read_rds("data/processed/property_master_list.rds")
+refresh_acs <- tolower(Sys.getenv("REFRESH_ACS", "false")) %in% c("true", "1", "yes")
 
 target_tracts <- properties$tract_geoid |> na.omit() |> unique()
 target_counties <- properties$county_fips |> na.omit() |> unique()
@@ -123,7 +124,7 @@ acs_vars <- c(
 
 # 3. Fetch Data Function with Caching (5-year ACS for tract-level comparisons)
 years <- 2013:2022
-years_acs1 <- setdiff(years, 2020) # 2020 1-year ACS not released (experimental only)
+years_acs1 <- setdiff(2013:2023, 2020) # include latest 1-year (2023), exclude experimental 2020
 
 fetch_acs_data <- function(years, geography, survey = "acs5", state = NULL, zcta = NULL) {
   map_dfr(years, function(yr) {
@@ -131,7 +132,7 @@ fetch_acs_data <- function(years, geography, survey = "acs5", state = NULL, zcta
     dir.create(cache_dir, recursive = TRUE, showWarnings = FALSE)
     cache_file <- file.path(cache_dir, paste0("acs_", geography, "_", survey, "_", yr, ".rds"))
 
-    if (file.exists(cache_file)) {
+    if (!refresh_acs && file.exists(cache_file)) {
       message(paste("Loading cached", survey, yr, geography, "..."))
       return(read_rds(cache_file))
     }
@@ -186,7 +187,7 @@ fetch_zcta_data <- function(years, target_zctas) {
     dir.create(cache_dir, recursive = TRUE, showWarnings = FALSE)
     cache_file <- file.path(cache_dir, paste0("acs_zcta_acs5_", yr, ".rds"))
 
-    if (file.exists(cache_file)) {
+    if (!refresh_acs && file.exists(cache_file)) {
       message(paste("Loading cached ZCTA", yr, "..."))
       return(read_rds(cache_file))
     }
@@ -202,16 +203,31 @@ fetch_zcta_data <- function(years, target_zctas) {
         zcta = target_zctas
       ),
       error = function(e) {
-        message("ZCTA fetch failed for year ", yr, " (likely unsupported 'zcta' parameter on this tidycensus version). Skipping ZCTA to avoid full national download.")
-        return(tibble())
+        message("ZCTA-specific fetch failed for year ", yr, "; performing full national download then filtering.")
+        tryCatch(
+          get_acs(
+            geography = "zcta",
+            variables = acs_vars,
+            year = yr,
+            survey = "acs5",
+            output = "wide"
+          ),
+          error = function(e2) {
+            message(paste("Error fetching ZCTA", yr, ":", e2$message))
+            return(tibble())
+          }
+        )
       }
     )
 
     if (is.null(data) || nrow(data) == 0) return(tibble())
 
     data <- data |>
-      mutate(year = yr, survey = "acs5") |>
-      dplyr::filter(GEOID %in% target_zctas)
+      mutate(year = yr, survey = "acs5")
+
+    if (length(target_zctas)) {
+      data <- dplyr::filter(data, GEOID %in% target_zctas)
+    }
 
     write_rds(data, cache_file)
     data

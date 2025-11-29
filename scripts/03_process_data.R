@@ -37,6 +37,33 @@ parse_financials <- function(raw_line) {
 properties_financials <- properties |>
   mutate(financials = map(raw_line, parse_financials)) |>
   unnest(financials)
+property_crosswalk <- properties_financials |>
+  select(
+    property_id,
+    address_raw,
+    full_address,
+    tract_geoid,
+    zcta5,
+    county_fips,
+    state_fips
+  )
+property_tracts <- property_crosswalk$tract_geoid |> na.omit() |> unique()
+property_zctas <- property_crosswalk$zcta5 |> na.omit() |> unique()
+
+# 2b. Property counts by geography for summary tables
+tract_counts <- property_crosswalk |>
+  count(tract_geoid, name = "property_count") |>
+  arrange(desc(property_count))
+
+zcta_counts <- property_crosswalk |>
+  mutate(zcta5 = coalesce(zcta5, properties$zip[match(property_id, properties$property_id)])) |>
+  count(zcta5, name = "property_count") |>
+  arrange(desc(property_count))
+
+county_counts <- property_crosswalk |>
+  mutate(county_geoid = paste0(state_fips, county_fips)) |>
+  count(county_geoid, name = "property_count") |>
+  arrange(desc(property_count))
 
 # 3. Inflation Adjustment (CPI-U, annual averages, 2023 dollars)
 cpi_table <- tibble(
@@ -183,10 +210,12 @@ process_acs <- function(df) {
     ungroup()
 }
 
-tract_data_processed <- process_acs(acs_raw$tract)
+tract_data_processed <- process_acs(acs_raw$tract) |>
+  filter(GEOID %in% property_tracts)
 county_data_5yr_processed <- process_acs(acs_raw$county_5yr)
 county_data_1yr_processed <- process_acs(acs_raw$county_1yr)
-zcta_data_processed <- process_acs(acs_raw$zcta)
+zcta_data_processed <- process_acs(acs_raw$zcta) |>
+  filter(GEOID %in% property_zctas)
 
 # 6. Classify Tracts (Growth/Stable/Weakening) with MOE-aware significance tests
 classify_tract <- function(df) {
@@ -269,6 +298,10 @@ variable_dictionary <- tribble(
 final_data <- list(
   properties = properties_financials,
   property_reference = properties_financials,
+  property_crosswalk = property_crosswalk,
+  tract_counts = tract_counts,
+  zcta_counts = zcta_counts,
+  county_counts = county_counts,
   tract_history = tract_data_processed,
   county_history_5yr = county_data_5yr_processed,
   county_history_1yr = county_data_1yr_processed,
