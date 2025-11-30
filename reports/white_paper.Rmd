@@ -748,7 +748,9 @@ zcta_class_summary %>%
   )
 ```
 
-### Interactive ZCTA Map
+### Interactive ZCTA Map with Portfolio Properties
+
+The map below overlays portfolio properties on ZCTA classifications. Use the layer controls in the top-right to toggle ZCTA boundaries and property markers on/off. Click on any property or ZCTA for detailed metrics.
 
 ```{r zcta_map, out.width='100%', fig.height=7}
 if (nrow(zcta_classifications_full) > 0) {
@@ -772,22 +774,30 @@ if (nrow(zcta_classifications_full) > 0) {
   zcta_map_data <- zcta_county %>%
     left_join(zcta_classifications_full, by = "GEOID")
 
-  # Color palette
-  pal <- colorFactor(
+  # Color palette for ZCTA
+  pal_zcta <- colorFactor(
     palette = c("Growth" = "#27ae60", "Stable" = "#f39c12", "Weakening" = "#e74c3c"),
     domain = c("Growth", "Stable", "Weakening"),
     na.color = "#bdc3c7"
   )
 
-  # Create map
-  leaflet(zcta_map_data, width = "100%", height = 600) %>%
+  # Color palette for properties
+  pal_props <- colorFactor(
+    palette = c("Growth" = "#27ae60", "Stable" = "#f39c12", "Weakening" = "#e74c3c"),
+    domain = c("Growth", "Stable", "Weakening"),
+    na.color = "#95a5a6"
+  )
+
+  # Create map with ZCTA and properties
+  leaflet(width = "100%", height = 600) %>%
     addProviderTiles(providers$CartoDB.Positron) %>%
     addPolygons(
-      fillColor = ~pal(classification),
+      data = zcta_map_data,
+      fillColor = ~pal_zcta(classification),
       color = "#ffffff",
       weight = 1.5,
       opacity = 1,
-      fillOpacity = 0.7,
+      fillOpacity = 0.5,
       label = ~paste0("ZCTA ", GEOID, ": ", coalesce(classification, "No Data")),
       popup = ~paste0(
         "<b>ZCTA ", GEOID, "</b><br>",
@@ -799,9 +809,33 @@ if (nrow(zcta_classifications_full) > 0) {
       highlightOptions = highlightOptions(
         weight = 3,
         color = "#333",
-        fillOpacity = 0.9,
+        fillOpacity = 0.7,
         bringToFront = TRUE
-      )
+      ),
+      group = "ZCTA"
+    ) %>%
+    addCircleMarkers(
+      data = prop_with_classification,
+      ~long, ~lat,
+      radius = 7,
+      color = "#ffffff",
+      weight = 2,
+      opacity = 1,
+      fillColor = ~pal_props(classification),
+      fillOpacity = 0.9,
+      label = ~full_address,
+      popup = ~paste0(
+        "<b>", full_address, "</b><br>",
+        "Tract: ", tract_geoid, "<br>",
+        "Classification: <b>", coalesce(classification, "Unknown"), "</b><br>",
+        "Pop Change: ", percent(pop_change, 0.1),
+        ifelse(pop_change_sig, " ✓", ""), "<br>",
+        "Real Income Change: ", percent(income_change_real, 0.1),
+        ifelse(income_change_sig, " ✓", ""), "<br>",
+        "Vacancy Change: ", sprintf("%+.1f pp", vacancy_change * 100),
+        ifelse(vacancy_change_sig, " ✓", "")
+      ),
+      group = "Properties"
     ) %>%
     addPolygons(
       data = county_geom,
@@ -812,11 +846,15 @@ if (nrow(zcta_classifications_full) > 0) {
     ) %>%
     addLegend(
       "bottomright",
-      pal = pal,
-      values = ~classification,
-      title = "ZCTA Classification",
+      pal = pal_zcta,
+      values = zcta_map_data$classification,
+      title = "Classification",
       opacity = 1,
       na.label = "No Data"
+    ) %>%
+    addLayersControl(
+      overlayGroups = c("ZCTA", "Properties"),
+      options = layersControlOptions(collapsed = FALSE)
     )
 }
 ```
@@ -824,50 +862,6 @@ if (nrow(zcta_classifications_full) > 0) {
 ---
 
 ## Portfolio Geographic Distribution
-
-### Property Location Map
-
-```{r portfolio_map, out.width='100%', fig.height=7}
-# Create color palette
-pal_props <- colorFactor(
-  palette = c("Growth" = "#27ae60", "Stable" = "#f39c12", "Weakening" = "#e74c3c"),
-  domain = c("Growth", "Stable", "Weakening"),
-  na.color = "#95a5a6"
-)
-
-# Create map
-leaflet(prop_with_classification, width = "100%", height = 600) %>%
-  addProviderTiles(providers$CartoDB.Positron) %>%
-  addCircleMarkers(
-    ~long, ~lat,
-    radius = 7,
-    color = "#ffffff",
-    weight = 2,
-    opacity = 1,
-    fillColor = ~pal_props(classification),
-    fillOpacity = 0.8,
-    label = ~full_address,
-    popup = ~paste0(
-      "<b>", full_address, "</b><br>",
-      "Tract: ", tract_geoid, "<br>",
-      "Classification: <b>", coalesce(classification, "Unknown"), "</b><br>",
-      "Pop Change: ", percent(pop_change, 0.1),
-      ifelse(pop_change_sig, " ✓", ""), "<br>",
-      "Real Income Change: ", percent(income_change_real, 0.1),
-      ifelse(income_change_sig, " ✓", ""), "<br>",
-      "Vacancy Change: ", sprintf("%+.1f pp", vacancy_change * 100),
-      ifelse(vacancy_change_sig, " ✓", "")
-    )
-  ) %>%
-  addLegend(
-    "bottomright",
-    pal = pal_props,
-    values = ~classification,
-    title = "Tract Classification",
-    opacity = 1,
-    na.label = "Unknown"
-  )
-```
 
 ### Property Distribution by Tract
 
