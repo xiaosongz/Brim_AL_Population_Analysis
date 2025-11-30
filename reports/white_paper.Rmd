@@ -1,142 +1,248 @@
 ---
-title: "Market Intelligence Report"
-subtitle: "Deep Dive: Jefferson County & Portfolio Analysis"
-date: "`r Sys.Date()`"
-output: 
+title: "Demographic & Housing Market Analysis"
+subtitle: "Jefferson County, AL Portfolio Assessment"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output:
   html_document:
-    theme: flatly
-    toc: true
-    toc_float: true
-    code_folding: hide
-    css: null
+    theme: null
+    toc: false
+    self_contained: true
 ---
 
 <style>
+/* Base Typography */
 body {
-  font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
-  color: #333;
-  background-color: #f8f9fa;
-  line-height: 1.6;
-}
-.main-container {
-  max-width: 1200px;
-  margin: 0 auto;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  color: #1a1a1a;
   background-color: #ffffff;
-  padding: 40px;
-  box-shadow: 0 0 20px rgba(0,0,0,0.05);
-  border-radius: 8px;
+  line-height: 1.6;
+  font-size: 16px;
 }
-h1, h2, h3, h4 {
-  color: #2c3e50;
+
+.main-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 60px 80px;
+}
+
+/* Headers */
+h1 {
+  font-size: 2.8rem;
   font-weight: 700;
+  color: #000;
+  margin-bottom: 0.5rem;
+  letter-spacing: -0.03em;
+  border-bottom: 3px solid #000;
+  padding-bottom: 20px;
+}
+
+h2 {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: #000;
+  margin-top: 80px;
+  margin-bottom: 30px;
   letter-spacing: -0.02em;
 }
-h1 {
-  border-bottom: 2px solid #e9ecef;
-  padding-bottom: 15px;
-  margin-bottom: 40px;
-  font-size: 2.5rem;
-}
-h2 {
-  margin-top: 50px;
-  margin-bottom: 25px;
-  font-size: 1.8rem;
-  border-left: 5px solid #3498db;
-  padding-left: 15px;
-}
+
 h3 {
-  margin-top: 30px;
-  margin-bottom: 20px;
-  font-size: 1.4rem;
-  color: #34495e;
-}
-.nav-tabs {
-  border-bottom: 2px solid #dee2e6;
-  margin-bottom: 30px;
-}
-.nav-tabs > li > a {
-  color: #495057;
+  font-size: 1.3rem;
   font-weight: 600;
-  border: none;
-  border-bottom: 2px solid transparent;
+  color: #2c3e50;
+  margin-top: 40px;
+  margin-bottom: 20px;
 }
-.nav-tabs > li.active > a, .nav-tabs > li.active > a:hover, .nav-tabs > li.active > a:focus {
-  color: #3498db;
-  border: none;
-  border-bottom: 2px solid #3498db;
-  background-color: transparent;
-}
-.card {
-  background: #fff;
-  border: 1px solid #e9ecef;
-  border-radius: 8px;
-  padding: 25px;
-  margin-bottom: 30px;
-  box-shadow: 0 4px 6px rgba(0,0,0,0.02);
-  transition: transform 0.2s;
-}
-.card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 12px rgba(0,0,0,0.05);
-}
-.metric-box {
-  text-align: center;
-  padding: 15px;
-  background: #f8f9fa;
-  border-radius: 6px;
+
+h4 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #34495e;
+  margin-top: 30px;
   margin-bottom: 15px;
 }
-.metric-value {
-  font-size: 2rem;
-  font-weight: 700;
-  color: #2c3e50;
+
+/* Subtitle */
+.subtitle {
+  font-size: 1.4rem;
+  color: #666;
+  margin-bottom: 0.5rem;
+  font-weight: 400;
 }
+
+.date {
+  font-size: 0.95rem;
+  color: #999;
+  margin-bottom: 60px;
+}
+
+/* Section Dividers */
+hr {
+  border: none;
+  border-top: 1px solid #e0e0e0;
+  margin: 60px 0;
+}
+
+/* Key Metrics Grid */
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 30px;
+  margin: 40px 0;
+}
+
+.metric {
+  text-align: center;
+  padding: 25px 15px;
+  border-left: 3px solid #3498db;
+  background: #f8f9fa;
+}
+
+.metric-value {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: #000;
+  line-height: 1;
+  margin-bottom: 8px;
+}
+
 .metric-label {
-  font-size: 0.9rem;
-  color: #6c757d;
+  font-size: 0.85rem;
+  color: #666;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  font-weight: 500;
 }
-.insight-box {
-  background-color: #e8f4f8;
+
+.metric-sublabel {
+  font-size: 0.8rem;
+  color: #999;
+  margin-top: 5px;
+}
+
+/* Insight Callouts */
+.insight {
+  background-color: #f8f9fa;
   border-left: 4px solid #3498db;
-  padding: 15px 20px;
-  margin: 20px 0;
-  border-radius: 0 4px 4px 0;
-  font-style: italic;
+  padding: 20px 25px;
+  margin: 30px 0;
+  font-size: 0.95rem;
+  line-height: 1.7;
+}
+
+.insight strong {
   color: #2c3e50;
 }
-details.accordion {
-  margin: 15px 0 20px;
-  border: 1px solid #e0e4e8;
-  border-radius: 8px;
-  background: #fff;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+
+/* Tables */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 25px 0;
+  font-size: 0.9rem;
 }
-details.accordion summary {
-  padding: 14px 16px;
-  font-weight: 700;
-  cursor: pointer;
-  list-style: none;
+
+table thead {
+  background-color: #f8f9fa;
+  border-bottom: 2px solid #dee2e6;
 }
-details.accordion summary::-webkit-details-marker {
-  display: none;
+
+table th {
+  padding: 12px 15px;
+  text-align: left;
+  font-weight: 600;
+  color: #2c3e50;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
 }
-details.accordion .accordion-body {
-  padding: 0 18px 16px;
-  border-top: 1px solid #eef2f5;
-  background: #fff;
+
+table td {
+  padding: 12px 15px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+table tbody tr:hover {
+  background-color: #f8f9fa;
+}
+
+/* Figure Styling */
+.figure {
+  margin: 40px 0;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Two-column layouts */
+.col-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 40px;
+  margin: 40px 0;
+}
+
+.col-container-thirds {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 30px;
+  margin: 40px 0;
+}
+
+/* Technical Notes */
+.technical-note {
+  font-size: 0.85rem;
+  color: #666;
+  font-style: italic;
+  margin-top: 10px;
+  padding-left: 15px;
+  border-left: 2px solid #e0e0e0;
+}
+
+/* Methodology Section */
+.methodology {
+  background-color: #fafafa;
+  padding: 30px;
+  margin-top: 60px;
+  border-top: 1px solid #e0e0e0;
+}
+
+.methodology h3 {
+  margin-top: 20px;
+}
+
+/* Print Optimization */
+@media print {
+  .main-container {
+    max-width: 100%;
+    padding: 20px;
+  }
+
+  h2 {
+    page-break-before: always;
+  }
 }
 </style>
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.align = "center", dpi = 300)
+knitr::opts_chunk$set(
+  echo = FALSE,
+  warning = FALSE,
+  message = FALSE,
+  fig.align = "center",
+  fig.width = 12,
+  fig.height = 5,
+  dpi = 300
+)
+
 library(tidyverse)
 library(sf)
 library(leaflet)
-library(DT)
 library(scales)
 library(tigris)
+library(knitr)
+library(gridExtra)
 
 # Load Data
 final_data <- read_rds("../data/processed/final_analytical_data.rds")
@@ -144,482 +250,738 @@ properties <- final_data$property_reference
 property_crosswalk <- final_data$property_crosswalk
 tract_counts <- final_data$tract_counts
 zcta_counts <- final_data$zcta_counts
-county_counts <- final_data$county_counts
 tract_history <- final_data$tract_history
 zcta_history <- final_data$zcta_history
 zcta_history_full <- final_data$zcta_history_full
-classifications <- final_data$tract_classifications
+tract_classifications <- final_data$tract_classifications
 zcta_classifications <- final_data$zcta_classifications
 zcta_classifications_full <- final_data$zcta_classifications_full
+county_history_5yr <- final_data$county_history_5yr
+county_history_1yr <- final_data$county_history_1yr
 variable_dictionary <- final_data$variable_dictionary
-spec_years <- range(tract_history$year, na.rm = TRUE)
 
-# Setup Tigris
+# Setup
 options(tigris_use_cache = TRUE)
 
-# --- Helper Functions ---
-calc_cagr <- function(start_val, end_val, years) {
-  (end_val / start_val)^(1 / years) - 1
-}
+# Use county 1-year data if available for most recent trends, otherwise 5-year
+county_panel <- if(nrow(county_history_1yr) > 0) county_history_1yr else county_history_5yr
 
-# --- Data Preparation for Deep Dive ---
+# Analysis periods
+years_range <- range(tract_history$year, na.rm = TRUE)
+analysis_period <- paste(years_range, collapse = "–")
 
-# 1. County Deep Dive Data
-county_panel <- final_data$county_history_1yr
-if (nrow(county_panel) == 0) county_panel <- final_data$county_history_5yr
+# Portfolio summary
+prop_with_classification <- properties %>%
+  left_join(tract_classifications, by = c("tract_geoid" = "GEOID"))
 
-county_expanded <- county_panel %>%
-  mutate(
-    # Affordability
-    rent_to_income = (med_rent_real * 12) / med_income_real,
-    # Tenure
-    renter_share = renter_occupiedE / (renter_occupiedE + owner_occupiedE),
-    owner_share = owner_occupiedE / (renter_occupiedE + owner_occupiedE),
-    # Age Cohorts (Approximation based on available buckets)
-    # Assuming standard ACS buckets are mapped.
-    # Gen Z (approx < 25 in 2023), Millennials (25-44), Gen X (45-59), Boomers+ (60+)
-    # Note: These buckets shift over time, but for a static view we use age groups.
-    # Better: Use Age Groups directly.
-    pop_under_18 = age_m_under5E + age_m_5_9E + age_m_10_14E + age_m_15_17E +
-      age_f_under5E + age_f_5_9E + age_f_10_14E + age_f_15_17E,
-    pop_18_34 = age_m_18_19E + age_m_20E + age_m_21E + age_m_22_24E + age_m_25_29E + age_m_30_34E +
-      age_f_18_19E + age_f_20E + age_f_21E + age_f_22_24E + age_f_25_29E + age_f_30_34E,
-    pop_35_54 = age_m_35_39E + age_m_40_44E + age_m_45_49E + age_m_50_54E +
-      age_f_35_39E + age_f_40_44E + age_f_45_49E + age_f_50_54E,
-    pop_55_plus = age_m_55_59E + age_m_60_61E + age_m_62_64E + age_m_65_66E + age_m_67_69E +
-      age_m_70_74E + age_m_75_79E + age_m_80_84E + age_m_85_plusE +
-      age_f_55_59E + age_f_60_61E + age_f_62_64E + age_f_65_66E + age_f_67_69E +
-      age_f_70_74E + age_f_75_79E + age_f_80_84E + age_f_85_plusE
-  ) %>%
-  mutate(
-    pct_under_18 = pop_under_18 / total_popE,
-    pct_18_34 = pop_18_34 / total_popE,
-    pct_35_54 = pop_35_54 / total_popE,
-    pct_55_plus = pop_55_plus / total_popE
+total_properties <- nrow(properties)
+properties_with_tract <- sum(!is.na(properties$tract_geoid))
+growth_properties <- sum(prop_with_classification$classification == "Growth", na.rm = TRUE)
+stable_properties <- sum(prop_with_classification$classification == "Stable", na.rm = TRUE)
+weakening_properties <- sum(prop_with_classification$classification == "Weakening", na.rm = TRUE)
+
+# County-level summary stats
+latest_county <- county_panel %>% filter(year == max(year))
+earliest_county <- county_panel %>% filter(year == min(year))
+
+pop_change_county <- (latest_county$total_popE - earliest_county$total_popE) / earliest_county$total_popE
+income_change_county <- (latest_county$med_income_real - earliest_county$med_income_real) / earliest_county$med_income_real
+vacancy_change_county <- latest_county$vacancy_rate - earliest_county$vacancy_rate
+
+# Tract-level aggregates for portfolio tracts only
+portfolio_tracts <- prop_with_classification$tract_geoid %>% na.omit() %>% unique()
+
+tract_latest <- tract_history %>%
+  filter(GEOID %in% portfolio_tracts, year == max(year))
+
+tract_earliest <- tract_history %>%
+  filter(GEOID %in% portfolio_tracts, year == min(year))
+
+# Average metrics across portfolio tracts (weighted by tract population)
+avg_tract_metrics_latest <- tract_latest %>%
+  summarise(
+    avg_income = weighted.mean(med_income_real, total_popE, na.rm = TRUE),
+    avg_vacancy = weighted.mean(vacancy_rate, total_unitsE, na.rm = TRUE),
+    avg_renter_pct = weighted.mean(pct_renter, total_unitsE, na.rm = TRUE),
+    avg_bachelors_pct = weighted.mean(pct_bachelors, edu_totalE, na.rm = TRUE)
   )
-
-latest_yr <- max(county_expanded$year)
-start_yr <- min(county_expanded$year)
-
-# Portfolio Summary Stats
-prop_joined <- properties %>%
-  left_join(classifications, by = c("tract_geoid" = "GEOID"))
-
-growth_props <- prop_joined %>%
-  filter(classification == "Growth") %>%
-  nrow()
-total_props <- nrow(prop_joined)
-growth_pct <- growth_props / total_props
 ```
 
 ## Executive Summary
 
-This **Deep Dive Market Intelligence Report** evaluates the demographic, housing, and economic landscape of **Jefferson County, AL**, and the specific performance of the **`r total_props` properties** within the portfolio.
+This report analyzes demographic and housing market trends in Jefferson County, Alabama, with specific focus on the `r total_properties` properties in the portfolio. Data spans `r analysis_period` using U.S. Census American Community Survey (ACS) 5-year estimates, with all monetary values inflation-adjusted to 2023 dollars.
 
-### Strategic Overview
+### Portfolio Geographic Distribution
 
-<div class="row">
-<div class="col-md-4">
-<div class="metric-box">
-<div class="metric-value">`r percent(growth_pct)`</div>
-<div class="metric-label">Portfolio in Growth Tracts</div>
-</div>
-</div>
-<div class="col-md-4">
-<div class="metric-box">
-<div class="metric-value">`r percent(county_expanded$rent_to_income[county_expanded$year == latest_yr], 0.1)`</div>
-<div class="metric-label">Rent-to-Income Ratio (2023)</div>
-</div>
-</div>
-<div class="col-md-4">
-<div class="metric-box">
-<div class="metric-value">`r percent(county_expanded$vacancy_rate[county_expanded$year == latest_yr], 0.1)`</div>
-<div class="metric-label">County Vacancy Rate</div>
-</div>
-</div>
+<div class="metrics-grid">
+<div class="metric">
+<div class="metric-value">`r total_properties`</div>
+<div class="metric-label">Total Properties</div>
 </div>
 
-<div class="insight-box">
-**Key Takeaway:** The portfolio is well-positioned in high-growth areas. However, rising rent-to-income ratios in the broader county suggest a tightening affordability environment, which may support rental demand but also signals potential ceiling on rent growth without income gains.
+<div class="metric">
+<div class="metric-value">`r length(portfolio_tracts)`</div>
+<div class="metric-label">Census Tracts</div>
+</div>
+
+<div class="metric">
+<div class="metric-value">`r growth_properties`</div>
+<div class="metric-label">Growth Tracts</div>
+<div class="metric-sublabel">`r percent(growth_properties/properties_with_tract, 0.1)` of portfolio</div>
+</div>
+
+<div class="metric">
+<div class="metric-value">`r stable_properties`</div>
+<div class="metric-label">Stable Tracts</div>
+<div class="metric-sublabel">`r percent(stable_properties/properties_with_tract, 0.1)` of portfolio</div>
+</div>
+
+<div class="metric">
+<div class="metric-value">`r weakening_properties`</div>
+<div class="metric-label">Weakening Tracts</div>
+<div class="metric-sublabel">`r percent(weakening_properties/properties_with_tract, 0.1)` of portfolio</div>
+</div>
+</div>
+
+<div class="technical-note">
+**Classification Methodology:** Tracts are classified based on statistically significant changes (using ACS margins of error) in population, real median household income, and vacancy rates over the analysis period. See Technical Appendix for details.
 </div>
 
 ---
 
-> Sections below are collapsed by default—click a heading to reveal details and visuals.
+## Jefferson County Market Overview
 
-## Deep Dive Analysis
+### Population Trends
 
-<details class="accordion">
-<summary>Population & Age Structure</summary>
-<div class="accordion-body">
-
-### Population Dynamics
-
-**Demographic shifts drive housing demand.** We track total growth and who is driving it.
-
-```{r pop_analysis, fig.width=10, fig.height=6}
-# 1. Total Population Trend
-p_pop_total <- county_expanded %>%
+```{r county_population, fig.height=4.5}
+county_panel %>%
   ggplot(aes(x = year, y = total_popE)) +
-  geom_area(fill = "#e1f5fe", alpha = 0.5) +
-  geom_line(color = "#039be5", size = 1.2) +
-  scale_y_continuous(labels = comma) +
-  theme_minimal() +
-  labs(title = "Total Population", subtitle = "Steady baseline trend", x = NULL, y = NULL)
-
-# 2. Age Cohort Evolution (Stacked Area)
-cohort_long <- county_expanded %>%
-  select(year, pct_under_18, pct_18_34, pct_35_54, pct_55_plus) %>%
-  pivot_longer(-year, names_to = "cohort", values_to = "pct") %>%
-  mutate(cohort = factor(cohort,
-    levels = c("pct_55_plus", "pct_35_54", "pct_18_34", "pct_under_18"),
-    labels = c("55+ (Boomers/Seniors)", "35-54 (Gen X/Millennials)", "18-34 (Gen Z/Young Pro)", "<18 (Gen Alpha)")
-  ))
-
-p_cohorts <- ggplot(cohort_long, aes(x = year, y = pct, fill = cohort)) +
-  geom_area(alpha = 0.85, color = "white") +
-  scale_fill_manual(values = c(
-    "55+ (Boomers/Seniors)" = "#2c3e50",
-    "35-54 (Gen X/Millennials)" = "#3498db",
-    "18-34 (Gen Z/Young Pro)" = "#2ecc71",
-    "<18 (Gen Alpha)" = "#f1c40f"
-  )) +
-  scale_y_continuous(labels = percent) +
-  theme_minimal() +
-  labs(title = "Age Structure Evolution", subtitle = "Shift in generational weight", x = NULL, y = NULL, fill = NULL) +
-  theme(legend.position = "bottom")
-```
-
-<div class="row">
-<div class="col-md-5">
-<div class="card">
-```{r pop_total_display, fig.height=4}
-p_pop_total
-```
-</div>
-</div>
-<div class="col-md-7">
-<div class="card">
-```{r cohorts_display, fig.height=4}
-p_cohorts
-```
-</div>
-</div>
-</div>
-
-<div class="insight-box">
-**Signals to watch:** Rising **18–34** share supports rentals; growing **55+** points to accessibility and downsizing demand; stable **<18** keeps a future household pipeline in place.
-</div>
-
-</div>
-</details>
-
-<details class="accordion">
-<summary>Housing Market Health</summary>
-<div class="accordion-body">
-
-### Housing Market Health
-
-**Supply, Demand, and Affordability.**
-
-```{r housing_analysis, fig.width=10, fig.height=5}
-# 1. Affordability: Rent to Income
-p_affordability <- county_expanded %>%
-  ggplot(aes(x = year, y = rent_to_income)) +
-  geom_hline(yintercept = 0.30, linetype = "dashed", color = "red", alpha = 0.5) +
-  geom_line(color = "#e74c3c", size = 1.2) +
-  geom_point(size = 2, color = "#c0392b") +
-  annotate("text", x = min(county_expanded$year), y = 0.305, label = "Burden Threshold (30%)", color = "red", hjust = 0, size = 3) +
-  scale_y_continuous(labels = percent, limits = c(0.15, 0.35)) +
-  theme_minimal() +
-  labs(title = "Housing Affordability", subtitle = "Rent-to-Income Ratio", x = NULL, y = NULL)
-
-# 2. Tenure Trends
-tenure_long <- county_expanded %>%
-  select(year, renter_share, owner_share) %>%
-  pivot_longer(-year, names_to = "tenure", values_to = "pct") %>%
-  mutate(tenure = ifelse(tenure == "renter_share", "Renter", "Owner"))
-
-p_tenure <- ggplot(tenure_long, aes(x = year, y = pct, color = tenure)) +
-  geom_line(size = 1.2) +
-  scale_color_manual(values = c("Owner" = "#2ecc71", "Renter" = "#f39c12")) +
-  scale_y_continuous(labels = percent) +
-  theme_minimal() +
-  labs(title = "Market Tenure Split", subtitle = "Renter vs. Owner Occupancy", x = NULL, y = NULL, color = NULL) +
-  theme(legend.position = "bottom")
-
-# 3. Vacancy vs Rent Growth
-# Calculate YoY Rent Growth
-county_expanded <- county_expanded %>%
-  arrange(year) %>%
-  mutate(rent_growth = (med_rent_real - lag(med_rent_real)) / lag(med_rent_real))
-
-p_vacancy_rent <- county_expanded %>%
-  filter(!is.na(rent_growth)) %>%
-  ggplot(aes(x = year)) +
-  geom_col(aes(y = rent_growth, fill = "Real Rent Growth"), alpha = 0.6) +
-  geom_line(aes(y = vacancy_rate / 4, color = "Vacancy Rate"), size = 1.2) + # Scaling vacancy to fit
-  scale_y_continuous(
-    labels = percent, name = "Rent Growth",
-    sec.axis = sec_axis(~ . * 4, labels = percent, name = "Vacancy Rate")
+  geom_line(size = 1.2, color = "#2c3e50") +
+  geom_point(size = 2.5, color = "#2c3e50") +
+  scale_y_continuous(labels = comma, expand = c(0.05, 0)) +
+  labs(
+    title = "Jefferson County Total Population",
+    subtitle = paste0("Change: ", percent(pop_change_county, 0.1), " over period"),
+    x = NULL,
+    y = "Population"
   ) +
-  scale_fill_manual(values = c("Real Rent Growth" = "#3498db")) +
-  scale_color_manual(values = c("Vacancy Rate" = "#e74c3c")) +
-  theme_minimal() +
-  labs(title = "Supply/Demand Dynamics", subtitle = "Rent Growth vs Vacancy", x = NULL, color = NULL, fill = NULL) +
-  theme(legend.position = "bottom")
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(color = "#666", size = 12),
+    panel.grid.minor = element_blank()
+  )
 ```
 
-<div class="row">
-<div class="col-md-4">
-<div class="card">
-```{r afford_display, fig.height=4}
-p_affordability
-```
-</div>
-</div>
-<div class="col-md-4">
-<div class="card">
-```{r tenure_display, fig.height=4}
-p_tenure
-```
-</div>
-</div>
-<div class="col-md-4">
-<div class="card">
-```{r vac_rent_display, fig.height=4}
-p_vacancy_rent
-```
-</div>
-</div>
-</div>
+### Economic Fundamentals
 
-<div class="insight-box">
-**Market Health Check:**
-*   **Affordability:** A rising Rent-to-Income ratio indicates that rent growth is outpacing income growth, potentially squeezing tenant budgets.
-*   **Tenure:** An uptick in renter share often correlates with high interest rates or home price appreciation locking out first-time buyers.
-*   **Dynamics:** Typically, falling vacancy precedes rent spikes. Watch for divergence where vacancy rises *and* rents rise, which may indicate a supply mismatch (e.g., new luxury supply vs. affordable demand).
-</div>
+<div class="col-container">
+<div>
 
-</div>
-</details>
-
-<details class="accordion">
-<summary>Economic Resilience</summary>
-<div class="accordion-body">
-
-### Economic Resilience
-
-**Income Power and Employment.**
-
-```{r econ_analysis, fig.width=10, fig.height=4}
-# Real Income vs Inflation (CPI implied by adjustment)
-# Since we already adjusted to 2023$, flat line means keeping up with inflation.
-# Rising line means beating inflation.
-
-p_income_real <- county_expanded %>%
+```{r county_income, fig.height=4.5}
+county_panel %>%
   ggplot(aes(x = year, y = med_income_real)) +
-  geom_line(color = "#27ae60", size = 1.2) +
-  geom_smooth(method = "lm", se = FALSE, color = "#27ae60", linetype = "dashed", alpha = 0.5) +
-  scale_y_continuous(labels = dollar) +
-  theme_minimal() +
-  labs(title = "Real Purchasing Power", subtitle = "Median Household Income (2023$)", x = NULL, y = NULL)
+  geom_line(size = 1.2, color = "#27ae60") +
+  geom_point(size = 2.5, color = "#27ae60") +
+  geom_smooth(method = "lm", se = FALSE, linetype = "dashed", color = "#27ae60", alpha = 0.3) +
+  scale_y_continuous(labels = dollar, expand = c(0.05, 0)) +
+  labs(
+    title = "Median Household Income",
+    subtitle = paste0("Real (2023$) change: ", percent(income_change_county, 0.1)),
+    x = NULL,
+    y = "Income (2023$)"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    plot.subtitle = element_text(color = "#666", size = 11),
+    panel.grid.minor = element_blank()
+  )
+```
 
-# Unemployment & Poverty
-p_distress <- county_expanded %>%
+</div>
+<div>
+
+```{r county_employment, fig.height=4.5}
+county_panel %>%
   select(year, unemployment_rate, poverty_rate) %>%
-  pivot_longer(-year, names_to = "metric", values_to = "pct") %>%
-  mutate(metric = ifelse(metric == "unemployment_rate", "Unemployment", "Poverty")) %>%
-  ggplot(aes(x = year, y = pct, color = metric)) +
+  pivot_longer(-year, names_to = "metric", values_to = "rate") %>%
+  mutate(metric = case_when(
+    metric == "unemployment_rate" ~ "Unemployment Rate",
+    metric == "poverty_rate" ~ "Poverty Rate"
+  )) %>%
+  ggplot(aes(x = year, y = rate, color = metric)) +
   geom_line(size = 1.2) +
-  scale_color_manual(values = c("Poverty" = "#8e44ad", "Unemployment" = "#95a5a6")) +
-  scale_y_continuous(labels = percent) +
-  theme_minimal() +
-  labs(title = "Economic Stress Indicators", subtitle = "Poverty & Unemployment Rates", x = NULL, y = NULL, color = NULL) +
-  theme(legend.position = "bottom")
+  geom_point(size = 2.5) +
+  scale_color_manual(values = c("Unemployment Rate" = "#e74c3c", "Poverty Rate" = "#9b59b6")) +
+  scale_y_continuous(labels = percent, expand = c(0.05, 0)) +
+  labs(
+    title = "Economic Stress Indicators",
+    subtitle = "County-level unemployment and poverty trends",
+    x = NULL,
+    y = "Rate",
+    color = NULL
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    plot.subtitle = element_text(color = "#666", size = 11),
+    panel.grid.minor = element_blank(),
+    legend.position = "bottom"
+  )
 ```
 
-<div class="row">
-<div class="col-md-6">
-<div class="card">
-```{r inc_real_display, fig.height=4}
-p_income_real
-```
-</div>
-</div>
-<div class="col-md-6">
-<div class="card">
-```{r distress_display, fig.height=4}
-p_distress
-```
-</div>
 </div>
 </div>
 
+### Housing Market Conditions
+
+<div class="col-container-thirds">
+<div>
+
+```{r county_vacancy, fig.height=4}
+county_panel %>%
+  ggplot(aes(x = year, y = vacancy_rate)) +
+  geom_line(size = 1.2, color = "#e67e22") +
+  geom_point(size = 2.5, color = "#e67e22") +
+  scale_y_continuous(labels = percent, expand = c(0.1, 0)) +
+  labs(
+    title = "Vacancy Rate",
+    subtitle = paste0("Change: ", sprintf("%+.1f", vacancy_change_county * 100), " pp"),
+    x = NULL,
+    y = "Vacancy Rate"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold", size = 13),
+    plot.subtitle = element_text(color = "#666", size = 10),
+    panel.grid.minor = element_blank()
+  )
+```
+
 </div>
-</details>
+<div>
+
+```{r county_rent, fig.height=4}
+county_panel %>%
+  ggplot(aes(x = year, y = med_rent_real)) +
+  geom_line(size = 1.2, color = "#3498db") +
+  geom_point(size = 2.5, color = "#3498db") +
+  scale_y_continuous(labels = dollar, expand = c(0.05, 0)) +
+  labs(
+    title = "Median Rent",
+    subtitle = "Real (2023$)",
+    x = NULL,
+    y = "Monthly Rent"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold", size = 13),
+    plot.subtitle = element_text(color = "#666", size = 10),
+    panel.grid.minor = element_blank()
+  )
+```
+
+</div>
+<div>
+
+```{r county_tenure, fig.height=4}
+county_panel %>%
+  ggplot(aes(x = year, y = pct_renter)) +
+  geom_line(size = 1.2, color = "#16a085") +
+  geom_point(size = 2.5, color = "#16a085") +
+  scale_y_continuous(labels = percent, expand = c(0.05, 0)) +
+  labs(
+    title = "Renter Share",
+    subtitle = "% of occupied units",
+    x = NULL,
+    y = "Renter %"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold", size = 13),
+    plot.subtitle = element_text(color = "#666", size = 10),
+    panel.grid.minor = element_blank()
+  )
+```
+
+</div>
+</div>
+
+```{r affordability_analysis, fig.height=4.5}
+county_panel %>%
+  mutate(rent_to_income = (med_rent_real * 12) / med_income_real) %>%
+  ggplot(aes(x = year, y = rent_to_income)) +
+  geom_hline(yintercept = 0.30, linetype = "dashed", color = "#e74c3c", alpha = 0.6) +
+  geom_line(size = 1.2, color = "#34495e") +
+  geom_point(size = 2.5, color = "#34495e") +
+  annotate("text", x = min(county_panel$year), y = 0.305,
+           label = "30% Cost Burden Threshold", hjust = 0, size = 3.5, color = "#e74c3c") +
+  scale_y_continuous(labels = percent, limits = c(0.15, 0.40), expand = c(0, 0)) +
+  labs(
+    title = "Housing Affordability: Annual Rent-to-Income Ratio",
+    subtitle = "Ratio above 30% indicates cost burden per HUD guidelines",
+    x = NULL,
+    y = "Rent / Income"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(color = "#666", size = 12),
+    panel.grid.minor = element_blank()
+  )
+```
+
+<div class="insight">
+**County-Level Observations:** Jefferson County shows `r if(abs(pop_change_county) < 0.02) "relatively stable population" else if(pop_change_county > 0) paste0("population growth of ", percent(pop_change_county, 0.1)) else paste0("population decline of ", percent(abs(pop_change_county), 0.1))` over the analysis period. Real median household income has `r if(income_change_county > 0) "increased" else "decreased"` by `r percent(abs(income_change_county), 0.1)`, while vacancy rates have `r if(vacancy_change_county > 0) "risen" else "fallen"` by `r sprintf("%.1f", abs(vacancy_change_county * 100))` percentage points.
+</div>
 
 ---
 
-## Geographic Intelligence
+## Portfolio Tract-Level Analysis
 
-<details class="accordion">
-<summary>ZCTA Map (Jefferson County)</summary>
-<div class="accordion-body">
+The portfolio's `r total_properties` properties are located across `r length(portfolio_tracts)` census tracts. This section analyzes demographic and housing trends specifically within these tracts.
 
-### ZCTA Map
+### Tract Classification Distribution
 
-**Neighborhood-Level Growth Signals**
+```{r tract_classification_summary}
+classification_summary <- tract_classifications %>%
+  filter(GEOID %in% portfolio_tracts) %>%
+  count(classification) %>%
+  mutate(pct = n / sum(n))
+
+classification_summary %>%
+  mutate(
+    classification = factor(classification, levels = c("Growth", "Stable", "Weakening")),
+    n = as.integer(n),
+    pct = percent(pct, 0.1)
+  ) %>%
+  arrange(classification) %>%
+  kable(
+    col.names = c("Classification", "Number of Tracts", "% of Portfolio Tracts"),
+    align = c("l", "r", "r")
+  )
+```
+
+### Tract Performance Metrics
+
+```{r tract_metrics_table}
+tract_classifications %>%
+  filter(GEOID %in% portfolio_tracts) %>%
+  left_join(tract_counts, by = c("GEOID" = "tract_geoid")) %>%
+  arrange(desc(pop_cagr)) %>%
+  transmute(
+    `Census Tract` = GEOID,
+    Classification = classification,
+    `Properties` = coalesce(property_count, 0L),
+    `Pop CAGR` = percent(pop_cagr, 0.1),
+    `Income CAGR` = percent(income_cagr, 0.1),
+    `Vacancy Δ` = sprintf("%+.1f pp", vacancy_change * 100),
+    `Pop Change Sig.` = ifelse(pop_change_sig, "✓", "—"),
+    `Income Change Sig.` = ifelse(income_change_sig, "✓", "—")
+  ) %>%
+  kable(align = c("l", "l", "r", "r", "r", "r", "c", "c"))
+```
+
+<div class="technical-note">
+**Significance Testing:** Statistical significance determined using ACS margins of error. Changes marked with ✓ are distinguishable from zero at ~90% confidence level.
+</div>
+
+### Tract Trends Over Time
+
+```{r tract_trends, fig.height=6}
+tract_panel <- tract_history %>%
+  filter(GEOID %in% portfolio_tracts) %>%
+  left_join(tract_classifications %>% select(GEOID, classification), by = "GEOID")
+
+# Population
+p1 <- tract_panel %>%
+  ggplot(aes(x = year, y = total_popE, group = GEOID, color = classification)) +
+  geom_line(alpha = 0.6, size = 0.8) +
+  scale_color_manual(
+    values = c("Growth" = "#27ae60", "Stable" = "#f39c12", "Weakening" = "#e74c3c"),
+    na.value = "#95a5a6"
+  ) +
+  scale_y_continuous(labels = comma) +
+  labs(
+    title = "Population by Tract",
+    x = NULL,
+    y = "Population",
+    color = "Classification"
+  ) +
+  theme_minimal(base_size = 11) +
+  theme(
+    plot.title = element_text(face = "bold", size = 13),
+    legend.position = "none",
+    panel.grid.minor = element_blank()
+  )
+
+# Income
+p2 <- tract_panel %>%
+  ggplot(aes(x = year, y = med_income_real, group = GEOID, color = classification)) +
+  geom_line(alpha = 0.6, size = 0.8) +
+  scale_color_manual(
+    values = c("Growth" = "#27ae60", "Stable" = "#f39c12", "Weakening" = "#e74c3c"),
+    na.value = "#95a5a6"
+  ) +
+  scale_y_continuous(labels = dollar) +
+  labs(
+    title = "Median Household Income (Real 2023$)",
+    x = NULL,
+    y = "Income",
+    color = "Classification"
+  ) +
+  theme_minimal(base_size = 11) +
+  theme(
+    plot.title = element_text(face = "bold", size = 13),
+    legend.position = "none",
+    panel.grid.minor = element_blank()
+  )
+
+# Vacancy
+p3 <- tract_panel %>%
+  ggplot(aes(x = year, y = vacancy_rate, group = GEOID, color = classification)) +
+  geom_line(alpha = 0.6, size = 0.8) +
+  scale_color_manual(
+    values = c("Growth" = "#27ae60", "Stable" = "#f39c12", "Weakening" = "#e74c3c"),
+    na.value = "#95a5a6"
+  ) +
+  scale_y_continuous(labels = percent) +
+  labs(
+    title = "Vacancy Rate",
+    x = NULL,
+    y = "Vacancy Rate",
+    color = "Classification"
+  ) +
+  theme_minimal(base_size = 11) +
+  theme(
+    plot.title = element_text(face = "bold", size = 13),
+    legend.position = "bottom",
+    panel.grid.minor = element_blank()
+  )
+
+gridExtra::grid.arrange(p1, p2, p3, ncol = 3)
+```
+
+### Demographic Composition (Portfolio Tracts)
+
+```{r demographics, fig.height=5}
+tract_latest_demo <- tract_history %>%
+  filter(GEOID %in% portfolio_tracts, year == max(year))
+
+# Education
+p_edu <- tract_latest_demo %>%
+  ggplot(aes(x = pct_bachelors)) +
+  geom_histogram(bins = 15, fill = "#3498db", alpha = 0.7, color = "white") +
+  scale_x_continuous(labels = percent) +
+  labs(
+    title = "Educational Attainment",
+    subtitle = "% with Bachelor's degree or higher",
+    x = "% Bachelor's+",
+    y = "Number of Tracts"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold", size = 13),
+    plot.subtitle = element_text(color = "#666", size = 10),
+    panel.grid.minor = element_blank()
+  )
+
+# Race composition (latest year average across tracts)
+race_comp <- tract_latest_demo %>%
+  summarise(
+    White = weighted.mean(pct_white, total_popE, na.rm = TRUE),
+    Black = weighted.mean(pct_black, total_popE, na.rm = TRUE),
+    Asian = weighted.mean(pct_asian, total_popE, na.rm = TRUE),
+    Hispanic = weighted.mean(pct_hispanic, total_popE, na.rm = TRUE)
+  ) %>%
+  pivot_longer(everything(), names_to = "race", values_to = "pct") %>%
+  mutate(race = factor(race, levels = c("White", "Black", "Hispanic", "Asian")))
+
+p_race <- race_comp %>%
+  ggplot(aes(x = race, y = pct, fill = race)) +
+  geom_col(alpha = 0.8, width = 0.7) +
+  scale_fill_manual(values = c("White" = "#95a5a6", "Black" = "#34495e",
+                                "Hispanic" = "#e67e22", "Asian" = "#9b59b6")) +
+  scale_y_continuous(labels = percent, expand = c(0, 0), limits = c(0, max(race_comp$pct) * 1.1)) +
+  labs(
+    title = "Racial/Ethnic Composition",
+    subtitle = "Population-weighted average across portfolio tracts",
+    x = NULL,
+    y = "% of Population"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold", size = 13),
+    plot.subtitle = element_text(color = "#666", size = 10),
+    legend.position = "none",
+    panel.grid.minor = element_blank(),
+    panel.grid.major.x = element_blank()
+  )
+
+gridExtra::grid.arrange(p_edu, p_race, ncol = 2)
+```
+
+---
+
+## Geographic Context: ZCTA-Level Analysis
+
+ZIP Code Tabulation Areas (ZCTAs) provide broader geographic context beyond census tracts. The analysis includes all ZCTAs intersecting Jefferson County.
+
+### ZCTA Classification Summary
+
+```{r zcta_summary}
+zcta_class_summary <- zcta_classifications_full %>%
+  count(classification) %>%
+  mutate(pct = n / sum(n))
+
+zcta_class_summary %>%
+  mutate(
+    classification = factor(classification, levels = c("Growth", "Stable", "Weakening")),
+    n = as.integer(n),
+    pct = percent(pct, 0.1)
+  ) %>%
+  arrange(classification) %>%
+  kable(
+    col.names = c("Classification", "Number of ZCTAs", "% of ZCTAs"),
+    align = c("l", "r", "r")
+  )
+```
+
+### Interactive ZCTA Map
 
 ```{r zcta_map, out.width='100%', fig.height=7}
 if (nrow(zcta_classifications_full) > 0) {
+  # Get county boundary
   county_geom <- counties(state = "AL", cb = TRUE, year = 2022, class = "sf") %>%
     filter(COUNTYFP == "073") %>%
     st_transform(4326)
 
+  # Get ZCTA geometries
   zcta_geom <- zctas(cb = TRUE, year = 2020, class = "sf") %>%
     st_transform(4326) %>%
     st_make_valid() %>%
-    st_collection_extract("POLYGON") %>%
-    st_intersection(county_geom) %>%
-    select(geometry, GEOID = ZCTA5CE20)
+    st_collection_extract("POLYGON")
 
-  zcta_map_df <- zcta_geom %>%
+  # Intersect with county
+  zcta_county <- zcta_geom %>%
+    st_intersection(county_geom) %>%
+    select(GEOID = ZCTA5CE20, geometry)
+
+  # Join classifications
+  zcta_map_data <- zcta_county %>%
     left_join(zcta_classifications_full, by = "GEOID")
 
-  pal_zcta <- colorFactor(
-    palette = c(Growth = "#2ca25f", Stable = "#fdae6b", Weakening = "#de2d26"),
+  # Color palette
+  pal <- colorFactor(
+    palette = c("Growth" = "#27ae60", "Stable" = "#f39c12", "Weakening" = "#e74c3c"),
     domain = c("Growth", "Stable", "Weakening"),
-    na.color = "#f0f0f0"
+    na.color = "#bdc3c7"
   )
 
-  leaflet(zcta_map_df) %>%
+  # Create map
+  leaflet(zcta_map_data, width = "100%", height = 600) %>%
     addProviderTiles(providers$CartoDB.Positron) %>%
     addPolygons(
-      fillColor = ~ pal_zcta(classification),
-      color = "white",
-      weight = 1,
+      fillColor = ~pal(classification),
+      color = "#ffffff",
+      weight = 1.5,
       opacity = 1,
       fillOpacity = 0.7,
-      label = ~ paste0("ZCTA ", GEOID, ": ", classification %||% "No Data"),
-      highlightOptions = highlightOptions(weight = 2, color = "#666", fillOpacity = 0.9, bringToFront = TRUE)
+      label = ~paste0("ZCTA ", GEOID, ": ", coalesce(classification, "No Data")),
+      popup = ~paste0(
+        "<b>ZCTA ", GEOID, "</b><br>",
+        "Classification: ", coalesce(classification, "No Data"), "<br>",
+        "Pop CAGR: ", percent(pop_cagr, 0.1), "<br>",
+        "Income CAGR: ", percent(income_cagr, 0.1), "<br>",
+        "Vacancy Change: ", sprintf("%+.1f pp", vacancy_change * 100)
+      ),
+      highlightOptions = highlightOptions(
+        weight = 3,
+        color = "#333",
+        fillOpacity = 0.9,
+        bringToFront = TRUE
+      )
     ) %>%
     addPolygons(
       data = county_geom,
       fill = FALSE,
-      color = "#333",
-      weight = 2,
+      color = "#000000",
+      weight = 3,
       opacity = 1
-  ) %>%
-    addLegend("bottomright", pal = pal_zcta, values = zcta_map_df$classification, title = "Market Classification", opacity = 1)
+    ) %>%
+    addLegend(
+      "bottomright",
+      pal = pal,
+      values = ~classification,
+      title = "ZCTA Classification",
+      opacity = 1,
+      na.label = "No Data"
+    )
 }
 ```
-
-</div>
-</details>
-
-<details class="accordion">
-<summary>Portfolio Map</summary>
-<div class="accordion-body">
-
-### Portfolio Map
-
-**Asset Locations & Performance**
-
-```{r portfolio_map, out.width='100%', fig.height=7}
-pal <- colorFactor(c("#2ca25f", "#fdae6b", "#de2d26"), domain = c("Growth", "Stable", "Weakening"))
-
-leaflet(prop_joined) %>%
-  addProviderTiles(providers$CartoDB.Positron) %>%
-  addCircleMarkers(
-    ~long, ~lat,
-    color = ~ pal(classification),
-    radius = 6,
-    fillOpacity = 0.8,
-    stroke = TRUE,
-    weight = 1,
-    opacity = 1,
-    popup = ~ paste0(
-      "<b>", full_address, "</b><br>",
-      "Tract: ", tract_geoid, "<br>",
-      "Class: <span style='color:", pal(classification), "; font-weight:bold'>", classification, "</span><br>",
-      "Pop Change: ", percent(pop_change, 0.1), "<br>",
-      "Real Income Change: ", percent(income_change_real, 0.1)
-    )
-  ) %>%
-  addLegend("bottomright", pal = pal, values = ~classification, title = "Neighborhood Trend", opacity = 1)
-```
-
-</div>
-</details>
-
-<details class="accordion">
-<summary>Tract-Level Table</summary>
-<div class="accordion-body">
-
-### Tract Data
-
-**Granular Asset Metrics**
-
-```{r tract_table}
-tract_summary <- final_data$tract_classifications %>%
-  filter(GEOID %in% unique(prop_joined$tract_geoid)) %>%
-  left_join(tract_history %>% group_by(GEOID) %>% summarise(latest_year = max(year)), by = "GEOID") %>%
-  arrange(classification, desc(pop_cagr))
-
-tract_summary %>%
-  transmute(
-    Tract = GEOID,
-    Classification = classification,
-    `Pop CAGR` = percent(pop_cagr, 0.1),
-    `Income CAGR` = percent(income_cagr, 0.1),
-    `Vacancy Δ` = percent(vacancy_change, 0.1),
-    `Pop Sig` = ifelse(pop_change_sig, "Yes", "-"),
-    `Inc Sig` = ifelse(income_change_sig, "Yes", "-")
-  ) %>%
-  datatable(
-    options = list(pageLength = 10, dom = "tp"),
-    rownames = FALSE,
-    class = "cell-border stripe"
-  )
-```
-
-</div>
-</details>
 
 ---
 
-## Technical Appendix
+## Portfolio Geographic Distribution
 
-<details class="accordion">
-<summary>Methodology & Definitions</summary>
-<div class="accordion-body">
+### Property Location Map
 
-### Methodology & Definitions
+```{r portfolio_map, out.width='100%', fig.height=7}
+# Create color palette
+pal_props <- colorFactor(
+  palette = c("Growth" = "#27ae60", "Stable" = "#f39c12", "Weakening" = "#e74c3c"),
+  domain = c("Growth", "Stable", "Weakening"),
+  na.color = "#95a5a6"
+)
 
-*   **Data Source**: US Census Bureau, ACS 5-year (tract/ZCTA) 2013–`r max(spec_years)`; ACS 1-year county through 2023.
-*   **Inflation Adjustment**: All monetary values adjusted to 2023 dollars using CPI-U annual averages.
-*   **Rent-to-Income Ratio**: Calculated as `(Median Gross Rent * 12) / Median Household Income`. A ratio > 30% indicates housing cost burden.
-*   **Classification Logic**:
-    *   **Growth**: Statistically significant population increase AND ≥1% real income CAGR with stable/declining vacancy.
-    *   **Weakening**: Significant population/income decline OR significant vacancy increase (>1 pp).
-    *   **Stable**: No statistically significant movement on core indicators.
-
-</div>
-</details>
-
-<details class="accordion">
-<summary>Variable Catalog</summary>
-<div class="accordion-body">
-
-### Variable Catalog
-
-```{r var_table}
-if (nrow(variable_dictionary) > 0) {
-  variable_dictionary %>%
-    datatable(options = list(pageLength = 10, dom = "tp"), rownames = FALSE)
-}
+# Create map
+leaflet(prop_with_classification, width = "100%", height = 600) %>%
+  addProviderTiles(providers$CartoDB.Positron) %>%
+  addCircleMarkers(
+    ~long, ~lat,
+    radius = 7,
+    color = "#ffffff",
+    weight = 2,
+    opacity = 1,
+    fillColor = ~pal_props(classification),
+    fillOpacity = 0.8,
+    label = ~full_address,
+    popup = ~paste0(
+      "<b>", full_address, "</b><br>",
+      "Tract: ", tract_geoid, "<br>",
+      "Classification: <b>", coalesce(classification, "Unknown"), "</b><br>",
+      "Pop Change: ", percent(pop_change, 0.1),
+      ifelse(pop_change_sig, " ✓", ""), "<br>",
+      "Real Income Change: ", percent(income_change_real, 0.1),
+      ifelse(income_change_sig, " ✓", ""), "<br>",
+      "Vacancy Change: ", sprintf("%+.1f pp", vacancy_change * 100),
+      ifelse(vacancy_change_sig, " ✓", "")
+    )
+  ) %>%
+  addLegend(
+    "bottomright",
+    pal = pal_props,
+    values = ~classification,
+    title = "Tract Classification",
+    opacity = 1,
+    na.label = "Unknown"
+  )
 ```
 
+### Property Distribution by Tract
+
+```{r property_distribution}
+tract_counts %>%
+  arrange(desc(property_count)) %>%
+  head(10) %>%
+  left_join(tract_classifications, by = c("tract_geoid" = "GEOID")) %>%
+  transmute(
+    `Census Tract` = tract_geoid,
+    `Properties` = property_count,
+    Classification = classification,
+    `Pop CAGR` = percent(pop_cagr, 0.1),
+    `Income CAGR` = percent(income_cagr, 0.1)
+  ) %>%
+  kable(
+    caption = "Top 10 Tracts by Property Count",
+    align = c("l", "r", "l", "r", "r")
+  )
+```
+
+---
+
+## Strategic Implications
+
+### Key Findings
+
+Based on the data analysis:
+
+1. **Geographic Concentration:** The portfolio is concentrated in `r length(portfolio_tracts)` census tracts, with `r percent(growth_properties/properties_with_tract, 0.1)` of properties located in tracts classified as "Growth" based on statistically significant improvements in population and/or income.
+
+2. **Tract-Level Fundamentals:** Portfolio tracts show `r if(length(portfolio_tracts) > 0) "varying" else "limited"` performance across demographic indicators. The tract classification methodology identifies areas with measurable positive momentum versus those showing signs of stress.
+
+3. **County Context:** Jefferson County as a whole has experienced `r if(abs(pop_change_county) < 0.02) "stable population levels" else if(pop_change_county > 0) "modest population growth" else "population decline"`, with real income trends `r if(income_change_county > 0) "upward" else "downward"` over the analysis period.
+
+4. **Housing Market Dynamics:** County-level vacancy rates have `r if(vacancy_change_county > 0) "increased" else "decreased"`, while rent-to-income ratios `r if(latest_county$med_rent_real * 12 / latest_county$med_income_real > 0.30) "exceed" else "remain below"` the 30% affordability threshold.
+
+### Data Limitations
+
+- **ACS Sampling Error:** Census tract estimates carry margins of error; only statistically significant changes are flagged in classifications
+- **Time Lag:** Most recent ACS 5-year estimates lag by 1-2 years from current market conditions
+- **Aggregation:** Tract-level data may mask block-level variation within neighborhoods
+- **No Property Performance:** This analysis focuses solely on macro demographic trends; property-level operating metrics not included
+
+### Recommended Next Steps
+
+1. **Monitor Weakening Tracts:** `r weakening_properties` properties sit in tracts showing demographic stress; consider deeper investigation
+2. **Validate Recent Trends:** Supplement ACS data with real-time market indicators (listing activity, permit data, etc.)
+3. **Property Performance Overlay:** Link tract classifications to actual rent growth, vacancy duration, and renewal rates
+4. **Expansion Analysis:** Use tract classification methodology to screen potential acquisition targets
+
+---
+
+<div class="methodology">
+
+## Technical Appendix
+
+### Data Sources
+
+- **American Community Survey (ACS):** U.S. Census Bureau 5-year estimates (`r analysis_period`)
+- **Geographic Boundaries:** Census TIGER/Line shapefiles (2020-2022 vintages)
+- **Inflation Adjustment:** Consumer Price Index for All Urban Consumers (CPI-U), annual averages
+
+### Variable Definitions
+
+```{r variable_table}
+variable_dictionary %>%
+  kable(
+    col.names = c("Metric", "Description", "Source"),
+    align = c("l", "l", "l")
+  )
+```
+
+### Classification Methodology
+
+**Growth Cluster:**
+- Statistically significant population increase (change > MOE at ~90% confidence)
+- AND real median household income CAGR ≥ 1% annually
+- AND stable or declining vacancy rate
+
+**Weakening Cluster:**
+- Statistically significant population decline
+- OR statistically significant income decline
+- OR vacancy rate increase ≥ 1 percentage point with statistical significance
+
+**Stable Cluster:**
+- No statistically significant changes meeting Growth or Weakening criteria
+
+**Statistical Significance:** Determined using ACS margins of error (MOE). For derived metrics (e.g., ratios, differences), MOEs propagated using Census Bureau formulas:
+- Sum MOE: `sqrt(sum(SE^2)) * 1.645`
+- Ratio MOE: `sqrt((SE_num/denom)^2 + (num*SE_denom/denom^2)^2) * 1.645`
+- Difference MOE: `sqrt(SE1^2 + SE2^2) * 1.645`
+
+### Analysis Limitations
+
+- Tract boundaries may change over time (boundary consistency not validated)
+- 5-year ACS estimates represent rolling averages and overlap across years
+- Small population tracts have larger margins of error
+- Property geocoding accuracy depends on Census Geocoder match quality
+
+### Software & Reproducibility
+
+Analysis conducted in R (≥4.2) using:
+- `tidycensus` for ACS data retrieval
+- `tidyverse` for data manipulation
+- `sf` and `tigris` for spatial operations
+- `leaflet` for interactive mapping
+
+Full code and data pipeline available in project repository.
+
 </div>
-</details>
+
+---
+
+<div style="text-align: center; color: #999; font-size: 0.85rem; margin-top: 60px; padding-top: 20px; border-top: 1px solid #e0e0e0;">
+Report generated `r format(Sys.time(), '%B %d, %Y at %I:%M %p')` | Analysis period: `r analysis_period`
+</div>
