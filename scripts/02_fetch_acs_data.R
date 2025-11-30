@@ -11,15 +11,22 @@ options(tigris_use_cache = TRUE)
 properties <- read_rds("data/processed/property_master_list.rds")
 refresh_acs <- tolower(Sys.getenv("REFRESH_ACS", "false")) %in% c("true", "1", "yes")
 
-target_tracts <- properties$tract_geoid |> na.omit() |> unique()
-target_counties <- properties$county_fips |> na.omit() |> unique()
+target_tracts <- properties$tract_geoid |>
+  na.omit() |>
+  unique()
+target_counties <- properties$county_fips |>
+  na.omit() |>
+  unique()
 target_counties_full <- properties |>
   filter(!is.na(county_fips)) |>
   mutate(state_fips = ifelse(is.na(state_fips), "01", state_fips)) |>
   transmute(county_geoid = paste0(state_fips, county_fips)) |>
   distinct() |>
   pull(county_geoid)
-target_zctas <- properties$zcta5 |> coalesce(properties$zip) |> na.omit() |> unique()
+target_zctas <- properties$zcta5 |>
+  coalesce(properties$zip) |>
+  na.omit() |>
+  unique()
 jefferson_county <- tigris::counties(state = "AL", cb = TRUE, year = 2022, class = "sf") |>
   filter(GEOID %in% target_counties_full) |>
   st_transform(4326)
@@ -168,7 +175,9 @@ fetch_acs_data <- function(years, geography, survey = "acs5", state = NULL, zcta
       }
     )
 
-    if (is.null(data) || nrow(data) == 0) return(tibble())
+    if (is.null(data) || nrow(data) == 0) {
+      return(tibble())
+    }
 
     data <- data |> mutate(year = yr, survey = survey)
     write_rds(data, cache_file)
@@ -191,7 +200,9 @@ county_data_1yr <- fetch_acs_data(years_acs1, "county", "acs1", state = "AL") |>
 
 message("Fetching ZCTA Data (5-Year, ACS)...")
 fetch_zcta_data <- function(years, target_zctas = NULL) {
-  if (!is.null(target_zctas) && length(target_zctas) == 0) return(tibble())
+  if (!is.null(target_zctas) && length(target_zctas) == 0) {
+    return(tibble())
+  }
 
   map_dfr(years, function(yr) {
     cache_dir <- "data/raw/acs_cache"
@@ -238,7 +249,9 @@ fetch_zcta_data <- function(years, target_zctas = NULL) {
       }
     )
 
-    if (is.null(data) || nrow(data) == 0) return(tibble())
+    if (is.null(data) || nrow(data) == 0) {
+      return(tibble())
+    }
 
     data <- data |>
       mutate(year = yr, survey = "acs5")
@@ -254,26 +267,34 @@ fetch_zcta_data <- function(years, target_zctas = NULL) {
 
 zcta_data <- fetch_zcta_data(years, target_zctas)
 
-# Full county ZCTA fetch (national then filtered)
-fetch_zcta_full <- function(years) {
+# Full county ZCTA fetch (filtered to county list)
+fetch_zcta_full <- function(years, target_zctas) {
   map_dfr(years, function(yr) {
     cache_dir <- "data/raw/acs_cache"
     dir.create(cache_dir, recursive = TRUE, showWarnings = FALSE)
     cache_file <- file.path(cache_dir, paste0("acs_zcta_full_acs5_", yr, ".rds"))
 
     if (!refresh_acs && file.exists(cache_file)) {
-      message(paste("Loading cached full ZCTA", yr, "..."))
-      return(read_rds(cache_file))
+      cached <- read_rds(cache_file)
+      # Check coverage
+      covered <- length(intersect(unique(cached$GEOID), target_zctas))
+      if (covered >= length(target_zctas)) {
+        message(paste("Loading cached full ZCTA", yr, "..."))
+        return(cached)
+      } else {
+        message(paste("Cache for full ZCTA", yr, "incomplete; refreshing."))
+      }
     }
 
-    message(paste("Fetching full ZCTA nationwide", yr, "..."))
+    message(paste("Fetching full ZCTA for county list", yr, "..."))
     data <- tryCatch(
       get_acs(
         geography = "zcta",
         variables = acs_vars,
         year = yr,
         survey = "acs5",
-        output = "wide"
+        output = "wide",
+        state = "AL"
       ),
       error = function(e) {
         message(paste("Error fetching full ZCTA", yr, ":", e$message))
@@ -281,13 +302,17 @@ fetch_zcta_full <- function(years) {
       }
     )
 
-    data <- data %>% mutate(year = yr, survey = "acs5")
-    write_rds(data, cache_file)
+    if (nrow(data) > 0) {
+      data <- data %>%
+        mutate(year = yr, survey = "acs5") %>%
+        filter(GEOID %in% target_zctas)
+      write_rds(data, cache_file)
+    }
     data
   })
 }
 
-zcta_data_full <- fetch_zcta_full(years)
+zcta_data_full <- fetch_zcta_full(years, county_zctas)
 
 # 5. Save Raw Data
 write_rds(
