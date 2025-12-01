@@ -1,58 +1,85 @@
 # scripts/02_fetch_acs_data.R
-library(tidyverse)
-library(tidycensus)
-library(sf)
-library(tigris)
+# Fetch American Community Survey data for property-related geographic areas
 
-if (file.exists(".env")) readRenviron(".env")
-options(tigris_use_cache = TRUE)
+# Load required libraries --------------------------------------------------------
+library(tidyverse)    # Data manipulation and functional programming tools
+library(tidycensus)   # Census API integration for ACS data retrieval
+library(sf)           # Spatial data handling and geometric operations
+library(tigris)       # Census shapefile and geographic boundary data
 
-# 1. Identify Target Geographies from the property reference file
+# Configure environment ----------------------------------------------------------
+if (file.exists(".env")) readRenviron(".env")  # Load environment variables
+options(tigris_use_cache = TRUE)               # Cache Census shapefiles
+
+# 1. Identify Target Geographies from Property Data -------------------------------
+# Load property master list and extract unique geographic identifiers
 properties <- read_rds("data/processed/property_master_list.rds")
+
+# Check if we should refresh cached ACS data based on environment variable
 refresh_acs <- tolower(Sys.getenv("REFRESH_ACS", "false")) %in% c("true", "1", "yes")
 
+# Extract unique Census tracts containing properties
 target_tracts <- properties$tract_geoid |>
   na.omit() |>
   unique()
+
+# Extract unique county FIPS codes for properties
 target_counties <- properties$county_fips |>
   na.omit() |>
   unique()
+
+# Create full county GEOIDs (state + county FIPS) for API calls
 target_counties_full <- properties |>
   filter(!is.na(county_fips)) |>
   mutate(state_fips = ifelse(is.na(state_fips), "01", state_fips)) |>
   transmute(county_geoid = paste0(state_fips, county_fips)) |>
   distinct() |>
   pull(county_geoid)
+
+# Extract unique ZCTAs and ZIP codes from property locations
 target_zctas <- properties$zcta5 |>
   coalesce(properties$zip) |>
   na.omit() |>
   unique()
+
+# Identify all ZCTAs that intersect with Jefferson County for broader market context
 jefferson_county <- tigris::counties(state = "AL", cb = TRUE, year = 2022, class = "sf") |>
   filter(GEOID %in% target_counties_full) |>
   st_transform(4326)
+
+# Get all ZCTA geometries and find those intersecting Jefferson County
 zcta_geom_full <- tigris::zctas(cb = TRUE, year = 2020, class = "sf") |>
   st_transform(4326)
+
+# Calculate spatial intersection matrix between ZCTAs and county
 inter_mat <- st_intersects(zcta_geom_full, jefferson_county, sparse = FALSE)
 county_zctas <- zcta_geom_full$ZCTA5CE20[apply(inter_mat, 1, any)] |> unique()
+
+# Use county ZCTAs for broader analysis, fall back to property ZCTAs if needed
 zcta_fetch_list <- county_zctas
 if (length(zcta_fetch_list) == 0) zcta_fetch_list <- target_zctas
-message(paste("County ZCTAs detected:", length(zcta_fetch_list)))
 
-message(paste("Found", length(target_tracts), "unique tracts,", length(target_counties), "counties, and", length(target_zctas), "zctas/zips."))
+message("Identified ", length(zcta_fetch_list), " ZCTAs in county boundary.")
+message("Found ", length(target_tracts), " tracts, ",
+        length(target_counties), " counties, ",
+        length(target_zctas), " property ZCTAs/ZIPs.")
 
-# 2. Define Variables aligned with the white paper spec (demographics, housing, socioeconomics)
+# 2. Define ACS Variables for Analysis -----------------------------------------
+# Comprehensive set of ACS variables aligned with demographic and housing analysis
+# Each variable includes both estimate (E) and margin of error (M) components
 acs_vars <- c(
-  total_pop = "B01003_001",
-  med_income = "B19013_001",
-  total_units = "B25002_001",
-  occupied = "B25002_002",
-  vacant = "B25002_003",
-  renter_occupied = "B25003_003",
-  owner_occupied = "B25003_002",
-  med_rent = "B25064_001",
-  median_age = "B01002_001",
+  # Core demographics and housing characteristics
+  total_pop = "B01003_001",        # Total population
+  med_income = "B19013_001",       # Median household income
+  total_units = "B25002_001",      # Total housing units
+  occupied = "B25002_002",         # Occupied housing units
+  vacant = "B25002_003",           # Vacant housing units
+  renter_occupied = "B25003_003",  # Renter-occupied units
+  owner_occupied = "B25003_002",   # Owner-occupied units
+  med_rent = "B25064_001",         # Median gross rent
+  median_age = "B01002_001",       # Median age
 
-  # Age buckets (male)
+  # Age distribution - male population by age groups
   age_m_under5 = "B01001_003",
   age_m_5_9 = "B01001_004",
   age_m_10_14 = "B01001_005",
@@ -77,7 +104,7 @@ acs_vars <- c(
   age_m_80_84 = "B01001_024",
   age_m_85_plus = "B01001_025",
 
-  # Age buckets (female)
+  # Age distribution - female population by age groups
   age_f_under5 = "B01001_027",
   age_f_5_9 = "B01001_028",
   age_f_10_14 = "B01001_029",
@@ -102,7 +129,7 @@ acs_vars <- c(
   age_f_80_84 = "B01001_048",
   age_f_85_plus = "B01001_049",
 
-  # Race & ethnicity (composition)
+  # Race and ethnicity composition (Hispanic origin treated separately)
   race_total = "B03002_001",
   race_white = "B03002_003",
   race_black = "B03002_004",
@@ -111,28 +138,28 @@ acs_vars <- c(
   race_two_or_more = "B03002_008",
   race_hispanic = "B03002_012",
 
-  # Education (Universe: Pop 25+)
+  # Educational attainment (population 25 years and older)
   edu_total = "B15003_001",
-  edu_hs = "B15003_017",
-  edu_hs_ged = "B15003_018",
-  edu_some_college = "B15003_019",
-  edu_some_college_2 = "B15003_020",
-  edu_assoc = "B15003_021",
-  edu_bachelors = "B15003_022",
-  edu_masters = "B15003_023",
-  edu_prof = "B15003_024",
-  edu_phd = "B15003_025",
+  edu_hs = "B15003_017",           # High school graduate
+  edu_hs_ged = "B15003_018",       # High school graduate (includes GED)
+  edu_some_college = "B15003_019", # Some college, less than 1 year
+  edu_some_college_2 = "B15003_020", # Some college, 1+ years
+  edu_assoc = "B15003_021",        # Associate degree
+  edu_bachelors = "B15003_022",    # Bachelor degree
+  edu_masters = "B15003_023",      # Master degree
+  edu_prof = "B15003_024",         # Professional school degree
+  edu_phd = "B15003_025",          # Doctorate degree
 
-  # Poverty (Universe: Population for whom poverty status is determined)
+  # Poverty status (population for whom poverty status determined)
   poverty_total = "B17001_001",
   poverty_below = "B17001_002",
 
-  # Employment (Universe: Pop 16+)
+  # Employment status (civilian population 16 years and older)
   emp_total = "B23025_001",
-  emp_labor_force = "B23025_002",
-  emp_unemployed = "B23025_005",
+  emp_labor_force = "B23025_002",  # In labor force
+  emp_unemployed = "B23025_005",   # Unemployed
 
-  # Commuting/transportation
+  # Commuting and transportation patterns
   commute_total = "B08301_001",
   commute_drive_alone = "B08301_003",
   commute_carpool = "B08301_004",
@@ -140,22 +167,33 @@ acs_vars <- c(
   commute_other = "B08301_019"
 )
 
-# 3. Fetch Data Function with Caching (5-year ACS for tract-level comparisons)
-years <- 2013:2022
-years_acs1 <- setdiff(2013:2023, 2020) # include latest 1-year (2023), exclude experimental 2020
+# 3. Define Time Periods and Caching Strategy ------------------------------------
+# Define analysis time frame: 10-year period with ACS 5-year estimates
+years <- 2013:2022                           # Primary analysis period (5-year ACS)
+years_acs1 <- setdiff(2013:2023, 2020)      # 1-year ACS for context, excluding 2020
 
+# 4. ACS Data Fetching Function with Intelligent Caching ------------------------
+# Fetch ACS data with built-in caching to avoid repeated API calls
 fetch_acs_data <- function(years, geography, survey = "acs5", state = NULL, zcta = NULL) {
   map_dfr(years, function(yr) {
+    # Set up cache directory and file naming
     cache_dir <- "data/raw/acs_cache"
     dir.create(cache_dir, recursive = TRUE, showWarnings = FALSE)
-    cache_file <- file.path(cache_dir, paste0("acs_", geography, "_", survey, "_", yr, ".rds"))
+    cache_file <- file.path(
+      cache_dir,
+      paste0("acs_", geography, "_", survey, "_", yr, ".rds")
+    )
 
+    # Check for cached data if refresh not requested
     if (!refresh_acs && file.exists(cache_file)) {
-      message(paste("Loading cached", survey, yr, geography, "..."))
+      message("Loading cached ", survey, " ", yr, " ", geography, "...")
       return(read_rds(cache_file))
     }
 
-    message(paste("Fetching", survey, yr, geography, "..."))
+    # Fetch fresh data from Census API
+    message("Fetching ", survey, " ", yr, " ", geography, "...")
+
+    # Build API call arguments
     args <- list(
       geography = geography,
       variables = acs_vars,
@@ -164,37 +202,49 @@ fetch_acs_data <- function(years, geography, survey = "acs5", state = NULL, zcta
       output = "wide"
     )
 
+    # Add geographic filters if specified
     if (!is.null(state)) args$state <- state
     if (!is.null(zcta)) args$zcta <- zcta
 
+    # Execute API call with error handling
     data <- tryCatch(
       do.call(get_acs, args),
       error = function(e) {
-        message(paste("Error fetching", yr, geography, ":", e$message))
+        message("Error fetching ", yr, " ", geography, ": ", e$message)
         return(tibble())
       }
     )
 
+    # Handle empty results gracefully
     if (is.null(data) || nrow(data) == 0) {
+      message("No data returned for ", yr, " ", geography)
       return(tibble())
     }
 
-    data <- data |> mutate(year = yr, survey = survey)
+    # Add metadata and cache results
+    data <- data |>
+      mutate(year = yr, survey = survey)
+
     write_rds(data, cache_file)
     data
   })
 }
 
-# 4. Execute Fetches
-message("Fetching Tract Data (5-Year, ACS)...")
+# 5. Execute Core Data Fetching -------------------------------------------------
+# Fetch ACS data for all required geographic levels and time periods
+
+# Primary analysis: Census tract data (5-year ACS for stability)
+message("Fetching Tract Data (5-Year ACS)...")
 tract_data <- fetch_acs_data(years, "tract", "acs5", state = "AL") |>
   filter(GEOID %in% target_tracts)
 
-message("Fetching County Data (5-Year, ACS)...")
+# County-level data for broader context (5-year ACS)
+message("Fetching County Data (5-Year ACS)...")
 county_data_5yr <- fetch_acs_data(years, "county", "acs5", state = "AL") |>
   filter(GEOID %in% target_counties_full)
 
-message("Fetching County Data (1-Year, ACS) for context only...")
+# Additional county data for recent trends (1-year ACS where available)
+message("Fetching County Data (1-Year ACS) for recent context...")
 county_data_1yr <- fetch_acs_data(years_acs1, "county", "acs1", state = "AL") |>
   filter(GEOID %in% target_counties_full)
 
@@ -314,18 +364,19 @@ fetch_zcta_full <- function(years, target_zctas) {
 
 zcta_data_full <- fetch_zcta_full(years, county_zctas)
 
-# 5. Save Raw Data
+# 6. Store All ACS Data ----------------------------------------------------------
+# Consolidate all fetched data into single structured RDS file for downstream processing
 write_rds(
   list(
-    tract = tract_data,
-    county_5yr = county_data_5yr,
-    county_1yr = county_data_1yr,
-    zcta = zcta_data,
-    zcta_full = zcta_data_full,
-    properties = properties,
-    county_zctas = zcta_fetch_list
+    tract = tract_data,                    # Primary tract-level analysis data
+    county_5yr = county_data_5yr,          # County context (5-year estimates)
+    county_1yr = county_data_1yr,          # County context (1-year estimates)
+    zcta = zcta_data,                      # Property-specific ZCTA data
+    zcta_full = zcta_data_full,            # County-wide ZCTA data
+    properties = properties,               # Property reference data
+    county_zctas = zcta_fetch_list         # List of county ZCTAs for reference
   ),
   "data/processed/acs_raw_data.rds"
 )
 
-message("ACS Data Collection Complete.")
+message("ACS data collection complete! Data saved to data/processed/acs_raw_data.rds")

@@ -1,37 +1,50 @@
 # scripts/03_process_data.R
-library(tidyverse)
-library(sf)
+# Process ACS data with MOE calculations, inflation adjustments, and classifications
 
-if (file.exists(".env")) readRenviron(".env")
+# Load required libraries --------------------------------------------------------
+library(tidyverse)    # Data manipulation and statistical analysis
+library(sf)           # Spatial data operations
 
-# 1. Load Data
+# Configure environment ----------------------------------------------------------
+if (file.exists(".env")) readRenviron(".env")  # Load environment variables
+
+# 1. Load Raw Data --------------------------------------------------------------
+# Load ACS data and property master list for processing
 acs_raw <- read_rds("data/processed/acs_raw_data.rds")
 properties <- read_rds("data/processed/property_master_list.rds")
-# Derive county ZCTAs (Jefferson County, AL)
-county_geom <- tigris::counties(state = "AL", cb = TRUE, year = 2022, class = "sf") %>%
-  dplyr::filter(COUNTYFP == "073") %>%
-  st_transform(4326)
-zcta_geom_full <- tigris::zctas(cb = TRUE, year = 2020, class = "sf") %>%
-  st_transform(4326)
-inter_mat <- st_intersects(zcta_geom_full, county_geom, sparse = FALSE)
-county_zctas <- zcta_geom_full$ZCTA5CE20[apply(inter_mat, 1, any)] %>% unique()
 
-# 2. Parse Financials from Property List
+# Derive county ZCTAs for Jefferson County, AL (completeness check)
+county_geom <- tigris::counties(state = "AL", cb = TRUE, year = 2022, class = "sf") |>
+  dplyr::filter(COUNTYFP == "073") |>      # Jefferson County FIPS code
+  st_transform(4326)
+
+zcta_geom_full <- tigris::zctas(cb = TRUE, year = 2020, class = "sf") |>
+  st_transform(4326)
+
+# Calculate spatial intersection to identify county ZCTAs
+inter_mat <- st_intersects(zcta_geom_full, county_geom, sparse = FALSE)
+county_zctas <- zcta_geom_full$ZCTA5CE20[apply(inter_mat, 1, any)] |> unique()
+
+# 2. Parse Property Financial Data ------------------------------------------------
+# Extract financial information from raw PDF text lines
 parse_financials <- function(raw_line) {
+  # Extract all monetary values from text line
   amounts <- str_extract_all(raw_line, "\\$[0-9,]+")[[1]] |>
     str_remove_all("[\\$,]") |>
     as.numeric()
 
+  # Parse the last 5 monetary values as financial metrics
   if (length(amounts) >= 5) {
     n <- length(amounts)
     tibble(
-      acquisition_cost = amounts[n - 4],
-      renovation_cost = amounts[n - 3],
-      total_cost = amounts[n - 2],
-      fair_market_value = amounts[n - 1],
-      equity = amounts[n]
+      acquisition_cost = amounts[n - 4],    # Original purchase price
+      renovation_cost = amounts[n - 3],     # Capital improvements
+      total_cost = amounts[n - 2],          # Total investment
+      fair_market_value = amounts[n - 1],   # Current market value
+      equity = amounts[n]                    # Net equity position
     )
   } else {
+    # Return NAs for malformed financial data
     tibble(
       acquisition_cost = NA_real_,
       renovation_cost = NA_real_,
@@ -42,19 +55,24 @@ parse_financials <- function(raw_line) {
   }
 }
 
+# Apply financial parsing to all properties
 properties_financials <- properties |>
   mutate(financials = map(raw_line, parse_financials)) |>
   unnest(financials)
+
+# Create simplified property crosswalk for geographic joins
 property_crosswalk <- properties_financials |>
   select(
-    property_id,
-    address_raw,
-    full_address,
-    tract_geoid,
-    zcta5,
-    county_fips,
-    state_fips
+    property_id,      # Sequential property identifier
+    address_raw,      # Original address from PDF
+    full_address,     # Standardized full address
+    tract_geoid,      # Census tract identifier
+    zcta5,            # ZIP Code Tabulation Area
+    county_fips,      # County FIPS code
+    state_fips        # State FIPS code
   )
+
+# Extract unique geographic identifiers for filtering
 property_tracts <- property_crosswalk$tract_geoid |> na.omit() |> unique()
 property_zctas <- property_crosswalk$zcta5 |> na.omit() |> unique()
 
@@ -73,12 +91,13 @@ county_counts <- property_crosswalk |>
   count(county_geoid, name = "property_count") |>
   arrange(desc(property_count))
 
-# 3. Inflation Adjustment (CPI-U, annual averages, 2023 dollars)
+# 3. Create Inflation Adjustment Table -------------------------------------------
+# CPI-U annual averages for adjusting income and rent to constant 2023 dollars
 cpi_table <- tibble(
   year = 2013:2023,
   cpi = c(232.957, 236.736, 237.017, 240.007, 245.120, 251.107, 255.657, 258.811, 270.970, 292.655, 304.702)
 ) |>
-  mutate(adj_factor = max(cpi) / cpi)
+  mutate(adj_factor = max(cpi) / cpi)  # Conversion factors to 2023 dollars
 
 # 4. Helper functions for ACS margins of error and significance
 se_from_moe <- function(moe) moe / 1.645
