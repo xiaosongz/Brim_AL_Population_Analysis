@@ -21,7 +21,7 @@ kpi_data <- tibble(
   potential_monthly_rent = as.numeric(dashboard_raw[[2]][9]),
   potential_annual_rent = as.numeric(dashboard_raw[[2]][10]),
   potential_noi_2026 = as.numeric(dashboard_raw[[2]][11]),
-  potential_cap_rate = as.numeric(dashboard_raw[[2]][12])
+  potential_cap_rate = 0.09  # Target 9% cap rate (rounded from Excel value)
 )
 
 cat("KPI Data extracted:\n")

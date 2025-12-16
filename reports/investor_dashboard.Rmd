@@ -69,12 +69,36 @@ valueBox(
 )
 ```
 
-### 2026 Potential NOI
+### T-12 NOI as of Oct 2025
+
+```{r}
+current_noi <- t12$noi[nrow(t12)]
+valueBox(
+  value = dollar(current_noi, accuracy = 1),
+  caption = "T-12 NOI as of Oct 2025",
+  icon = "fa-money-bill-wave",
+  color = "primary"
+)
+```
+
+### Cap Rate as of Oct 2025
+
+```{r}
+current_cap <- t12$cap_rate[nrow(t12)]
+valueBox(
+  value = percent(current_cap, accuracy = 0.1),
+  caption = "Cap Rate as of Oct 2025",
+  icon = "fa-chart-pie",
+  color = "info"
+)
+```
+
+### 2026 Potential Annual NOI
 
 ```{r}
 valueBox(
   value = dollar(kpi$potential_noi_2026, accuracy = 1),
-  caption = "Projected Annual NOI",
+  caption = "2026 Potential Annual NOI",
   icon = "fa-chart-line",
   color = "success"
 )
@@ -91,34 +115,10 @@ valueBox(
 )
 ```
 
-### NOI as of Oct 2025
-
-```{r}
-current_noi <- t12$noi[nrow(t12)]
-valueBox(
-  value = dollar(current_noi, accuracy = 1),
-  caption = "NOI as of Oct 2025",
-  icon = "fa-money-bill-wave",
-  color = "info"
-)
-```
-
-### Cap Rate as of Oct 2025
-
-```{r}
-current_cap <- t12$cap_rate[nrow(t12)]
-valueBox(
-  value = percent(current_cap, accuracy = 0.1),
-  caption = "Cap Rate as of Oct 2025",
-  icon = "fa-chart-pie",
-  color = "primary"
-)
-```
-
 Row {data-height=380}
 -----------------------------------------------------------------------
 
-### Fund Capital Allocation
+### Initial Capital Contribution by Funds
 
 ```{r}
 fund_data <- tibble(
@@ -132,6 +132,7 @@ plot_ly(fund_data,
         values = ~Capital, 
         type = 'pie',
         hole = 0.5,
+        sort = FALSE,
         textinfo = 'label+percent',
         textposition = 'outside',
         marker = list(colors = c(colors$fund_i, colors$fund_ii)),
@@ -147,7 +148,7 @@ plot_ly(fund_data,
   )
 ```
 
-### T-12 Financial Performance Trend
+### T-12 Asset Performance
 
 ```{r}
 t12_long <- t12 |>
@@ -185,7 +186,7 @@ plot_ly(t12_long, x = ~month, y = ~value, color = ~metric,
 Row {data-height=380}
 -----------------------------------------------------------------------
 
-### EGI Breakdown: Expenses vs NOI
+### Effective Gross Income Breakdown: Operating Expenses vs Net Operating Income
 
 ```{r}
 # Stacked bar with clear visual separation between expenses (red tones) and NOI (green)
@@ -238,15 +239,16 @@ plot_ly(expense_data, x = ~month) |>
   )
 ```
 
-### Cap Rate Trend
+### Capitalization Rate Trend
 
 ```{r}
 plot_ly(t12, x = ~month, y = ~cap_rate, type = 'scatter', mode = 'lines+markers',
+        name = "Cap Rate",
         line = list(color = colors$primary, width = 3),
         marker = list(size = 10, color = colors$primary),
         hovertemplate = "%{x}<br>Cap Rate: %{y:.2%}<extra></extra>") |>
   add_trace(y = rep(kpi$potential_cap_rate, nrow(t12)), 
-            name = "Target (9.16%)",
+            name = "Target (9%)",
             line = list(color = colors$success, width = 2, dash = "dash"),
             marker = list(size = 0),
             hovertemplate = "Target: %{y:.2%}<extra></extra>") |>
@@ -276,36 +278,39 @@ Row {data-height=500}
 ```{r}
 # Current and target positions
 current_noi <- t12$noi[nrow(t12)]  # Oct 2025: ~$134K
-current_cap <- t12$cap_rate[nrow(t12)] * 100  # ~3.6%
+current_cap <- t12$cap_rate[nrow(t12)] * 100  # ~4.7%
 current_value <- current_noi / (current_cap / 100)
 
-target_noi <- kpi$potential_noi_2026  # ~$260K
-target_cap <- kpi$potential_cap_rate * 100  # ~9.16%
+# Target zone: High NOI + Low MARKET cap rate (ideal exit environment)
+# Internal NOI grows to $260K+, wait for market cap rate to drop to ~3.5%
+target_noi <- kpi$potential_noi_2026  # ~$260K (stabilized internal NOI)
+target_cap <- 3.5  # Low market cap rate environment for optimal exit
 target_value <- target_noi / (target_cap / 100)
 
 # Focus on relevant range around current and target
 noi_range <- seq(100000, 300000, by = 20000)
 cap_range <- seq(3, 10, by = 0.5)
 
-# Build grid with progress score for coloring
-# Color logic: Higher NOI + Higher Cap Rate = GREEN (stabilized/good)
+# Build grid with valuation score for coloring
+# Color logic: Higher NOI + LOWER Cap Rate = GREEN (higher exit valuation)
+# Valuation = NOI / Cap Rate -> Lower market cap rate = higher valuation
 val_grid <- expand_grid(noi = noi_range, cap_rate = cap_range) |>
   mutate(
     value = noi / (cap_rate / 100),
-    # Progress score: 0 at bottom-left, 1 at top-right
+    # Valuation score: high NOI + low cap rate = green (top-right corner)
     noi_norm = (noi - min(noi_range)) / (max(noi_range) - min(noi_range)),
-    cap_norm = (cap_rate - min(cap_range)) / (max(cap_range) - min(cap_range)),
-    progress = (noi_norm + cap_norm) / 2
+    cap_norm = (max(cap_range) - cap_rate) / (max(cap_range) - min(cap_range)),  # Inverted: lower cap = higher score
+    valuation_score = (noi_norm + cap_norm) / 2
   )
 
 # Create heatmap using plot_ly with data frame (more reliable)
-plot_ly(val_grid, x = ~noi, y = ~cap_rate, z = ~progress, 
+plot_ly(val_grid, x = ~noi, y = ~cap_rate, z = ~valuation_score, 
         type = "heatmap",
         colors = colorRamp(c("#dc2626", "#f97316", "#fbbf24", "#84cc16", "#22c55e")),
         text = ~paste0("Value: ", scales::dollar(value)),
         hovertemplate = "NOI: %{x:$,.0f}<br>Cap Rate: %{y:.1f}%<br>%{text}<extra></extra>",
-        colorbar = list(title = "Progress", tickvals = c(0, 0.5, 1), 
-                        ticktext = c("Start", "Mid", "Target"), len = 0.8),
+        colorbar = list(title = "Exit<br>Valuation", tickvals = c(0, 0.5, 1), 
+                        ticktext = c("Low", "Mid", "High"), len = 0.8),
         showscale = TRUE) |>
   # Current position marker
   add_trace(
@@ -316,30 +321,31 @@ plot_ly(val_grid, x = ~noi, y = ~cap_rate, z = ~progress,
     hovertemplate = paste0("<b>CURRENT</b><br>NOI: ", dollar(current_noi), 
                            "<br>Cap: ", round(current_cap, 1), "%<br>Value: ", 
                            dollar(current_value), "<extra></extra>"),
-    name = "Current (Oct 2025)", inherit = FALSE
+    showlegend = FALSE, inherit = FALSE
   ) |>
-  # Target position marker
+  # Target position marker (top-right: high NOI + low market cap rate)
   add_trace(
     x = target_noi, y = target_cap, type = "scatter", mode = "markers+text",
     marker = list(size = 18, color = "#16a34a", symbol = "diamond",
                   line = list(color = "white", width = 3)),
     text = "TARGET", textposition = "bottom center",
     textfont = list(color = "#166534", size = 11, family = "Arial Black"),
-    hovertemplate = paste0("<b>TARGET</b><br>NOI: ", dollar(target_noi), 
-                           "<br>Cap: ", round(target_cap, 1), "%<br>Value: ", 
+    hovertemplate = paste0("<b>TARGET ZONE</b><br>NOI: ", dollar(target_noi), 
+                           "<br>Market Cap: ", round(target_cap, 1), "%<br>Exit Value: ", 
                            dollar(target_value), "<extra></extra>"),
-    name = "Target (2026)", inherit = FALSE
+    showlegend = FALSE, inherit = FALSE
   ) |>
   layout(
     xaxis = list(title = "Net Operating Income (NOI)", tickformat = "$,.0f"),
-    yaxis = list(title = "Capitalization Rate (%)", autorange = "reversed"),
+    yaxis = list(title = "Market Capitalization Rate (%)", autorange = "reversed"),
     legend = list(orientation = "h", y = -0.12, x = 0.5, xanchor = "center"),
     annotations = list(
       list(x = target_noi, y = target_cap, ax = current_noi, ay = current_cap,
            xref = "x", yref = "y", axref = "x", ayref = "y",
-           showarrow = TRUE, arrowhead = 2, arrowsize = 1.5, arrowwidth = 2, arrowcolor = "#7c3aed"),
+           showarrow = TRUE, arrowhead = 2, arrowsize = 1, arrowwidth = 10, 
+           arrowcolor = "rgba(124, 58, 237, 0.5)"),
       list(x = 0.5, y = 1.06, xref = "paper", yref = "paper",
-           text = "<b>Higher NOI + Higher Cap Rate = GREEN (stabilized)</b>",
+           text = "<b>Target Zone: High NOI + Low Market Cap Rate = Higher Exit Valuation</b>",
            showarrow = FALSE, font = list(size = 11, color = "#374151"))
     )
   )
@@ -375,19 +381,10 @@ plot_ly(loan_grid, x = ~ds, y = ~rate, z = ~affordability,
         colorbar = list(title = "Borrowing<br>Power", tickvals = c(0, 0.5, 1), 
                         ticktext = c("Low", "Mid", "High"), len = 0.8),
         showscale = TRUE) |>
-  # Mark current DS capacity line
-  add_trace(
-    x = rep(current_ds, length(rate_range)), y = rate_range,
-    type = "scatter", mode = "lines",
-    line = list(color = "#2563eb", width = 3, dash = "dash"),
-    name = paste0("Current DS (~", dollar(current_ds, accuracy = 1), ")"),
-    hovertemplate = "Current DS Capacity<br>%{x:$,.0f}<extra></extra>",
-    inherit = FALSE
-  ) |>
   layout(
     xaxis = list(title = "Annual Debt Service Capacity", tickformat = "$,.0f"),
     yaxis = list(title = "Interest Rate (%)", autorange = "reversed"),
-    legend = list(orientation = "h", y = -0.12),
+    showlegend = FALSE,
     annotations = list(
       list(x = 0.5, y = 1.06, xref = "paper", yref = "paper",
            text = "<b>Higher DS + Lower Rate = GREEN (more borrowing power)</b>",
@@ -407,11 +404,11 @@ metrics_table <- tibble(
     "Total Capital Invested (I.C.C.)",
     "Fund I Contribution",
     "Fund II Contribution",
-    "Number of Units",
-    "Potential Monthly Rent",
-    "Potential Annual Rent",
+    "Number of Units (Fund I & II)",
+    "2026 Potential Monthly Rent",
+    "2026 Potential Annual Rent",
     "2026 Projected NOI",
-    "Stabilized Cap Rate",
+    "Stabilization Cap Rate Target",
     "Current T-12 NOI (Oct 2025)",
     "Current Cap Rate"
   ),
@@ -420,8 +417,8 @@ metrics_table <- tibble(
     dollar(kpi$fund_i_icc),
     dollar(kpi$fund_ii_icc),
     as.character(kpi$unit_count),
-    dollar(kpi$potential_monthly_rent),
-    dollar(kpi$potential_annual_rent),
+    dollar(kpi$potential_monthly_rent, accuracy = 1),
+    dollar(kpi$potential_annual_rent, accuracy = 1),
     dollar(kpi$potential_noi_2026),
     percent(kpi$potential_cap_rate, accuracy = 0.01),
     dollar(t12$noi[nrow(t12)]),
