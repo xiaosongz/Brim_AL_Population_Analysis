@@ -9,6 +9,7 @@ output:
       bootswatch: flatly
       primary: "#1e3a8a"
     css: dashboard_styles.css
+runtime: shiny
 ---
 
 ```{r setup, include=FALSE}
@@ -479,3 +480,210 @@ datatable(
   class = 'cell-border stripe'
 )
 ```
+
+
+Calculators
+=====================================
+
+Row {data-height=500}
+-----------------------------------------------------------------------
+
+### Portfolio Valuation Calculator
+
+```{r}
+# Reference values
+portfolio_value <- kpi$total_icc  # Fixed portfolio value ~$2.835M
+current_noi_ref <- t12$noi[nrow(t12)]  # ~$134K
+target_noi_ref <- kpi$potential_noi_2026  # ~$260K
+current_cap_ref <- current_noi_ref / portfolio_value * 100  # Calculated from NOI
+target_cap_ref <- target_noi_ref / portfolio_value * 100  # Calculated from NOI
+
+fillCol(height = "100%", flex = c(NA, 1),
+
+  div(style = "padding: 20px; background: #f8fafc; border-radius: 8px; margin-bottom: 15px;",
+    h4("Adjust NOI to see Cap Rate (Portfolio Value is fixed)", style = "margin-top: 0; color: #1e3a8a;"),
+    fluidRow(
+      column(8, offset = 2,
+        sliderInput("noi_input", "Net Operating Income (NOI)",
+                    min = 50000, max = 350000, value = round(current_noi_ref, -3),
+                    step = 5000, pre = "$", sep = ",",
+                    width = "100%")
+      )
+    ),
+    fluidRow(
+      column(12, align = "center",
+        p(style = "margin: 5px 0; color: #6b7280; font-size: 12px;",
+          paste0("Portfolio Value (I.C.C.): ", dollar(portfolio_value), " | ",
+                 "Current NOI: ", dollar(current_noi_ref), " → ", round(current_cap_ref, 2), "% | ",
+                 "Target NOI: ", dollar(target_noi_ref), " → ", round(target_cap_ref, 2), "%"))
+      )
+    )
+  ),
+  renderUI({
+    noi <- input$noi_input
+    
+    # Cap Rate auto-calculated from NOI and fixed Portfolio Value
+    cap_rate <- noi / portfolio_value * 100
+    
+    # Color logic: Higher NOI = Higher Cap Rate = GREEN (good/stabilized)
+    progress <- (noi - current_noi_ref) / (target_noi_ref - current_noi_ref)
+    progress <- max(0, min(1, progress))  # Clamp 0-1
+    
+    # Color gradient: Red (0) -> Yellow (0.5) -> Green (1)
+    if (progress < 0.5) {
+      r <- 220
+      g <- round(180 * (progress * 2))
+      b <- 50
+    } else {
+      r <- round(220 - 180 * ((progress - 0.5) * 2))
+      g <- 180
+      b <- 50
+    }
+    bg_color <- sprintf("rgb(%d, %d, %d)", r, g, b)
+    text_color <- if (progress > 0.3) "#1a1a1a" else "#ffffff"
+    
+    # Status label
+    status <- case_when(
+      progress >= 0.9 ~ "At Target",
+      progress >= 0.7 ~ "Near Target",
+      progress >= 0.4 ~ "In Progress",
+      progress >= 0.2 ~ "Below Target",
+      TRUE ~ "Starting Point"
+    )
+    
+    div(style = "text-align: center; padding: 30px;",
+      # Two side-by-side result boxes
+      div(style = "display: flex; justify-content: center; gap: 30px; flex-wrap: wrap;",
+        # Cap Rate box (primary result)
+        div(style = paste0(
+          "padding: 30px 50px; border-radius: 16px; ",
+          "background: ", bg_color, "; ",
+          "box-shadow: 0 10px 40px rgba(0,0,0,0.15);"
+        ),
+          p(style = paste0("margin: 0 0 8px 0; font-size: 14px; color: ", text_color, "; opacity: 0.8;"),
+            "Cap Rate"),
+          h1(style = paste0("margin: 0; font-size: 42px; font-weight: bold; color: ", text_color, ";"),
+             percent(cap_rate/100, accuracy = 0.01)),
+          p(style = paste0("margin: 8px 0 0 0; font-size: 13px; color: ", text_color, "; opacity: 0.9;"),
+            status)
+        ),
+        # Portfolio Value box (fixed reference)
+        div(style = "padding: 30px 50px; border-radius: 16px; background: #e2e8f0; box-shadow: 0 4px 15px rgba(0,0,0,0.08);",
+          p(style = "margin: 0 0 8px 0; font-size: 14px; color: #64748b;",
+            "Portfolio Value (Fixed)"),
+          h1(style = "margin: 0; font-size: 42px; font-weight: bold; color: #1e3a8a;",
+             dollar(portfolio_value)),
+          p(style = "margin: 8px 0 0 0; font-size: 13px; color: #64748b;",
+            "Total I.C.C.")
+        )
+      ),
+      div(style = "margin-top: 25px; color: #6b7280;",
+        p(style = "margin: 5px 0;", 
+          strong("Formula: "), "Cap Rate = NOI / Portfolio Value"),
+        p(style = "margin: 5px 0; font-size: 13px;",
+          HTML("Higher NOI → Higher Cap Rate = <span style='color: #16a34a; font-weight: bold;'>GREEN</span> (stabilized)"))
+      )
+    )
+  })
+)
+```
+
+### Loan Affordability Calculator
+
+```{r}
+fillCol(height = "100%", flex = c(NA, 1),
+  div(style = "padding: 20px; background: #f8fafc; border-radius: 8px; margin-bottom: 15px;",
+    h4("Adjust Debt Service and Interest Rate to see max loan", style = "margin-top: 0; color: #1e3a8a;"),
+    fluidRow(
+      column(6,
+        sliderInput("ds_input", "Annual Debt Service Capacity",
+                    min = 50000, max = 250000, value = 107000,
+                    step = 5000, pre = "$", sep = ",",
+                    width = "100%")
+      ),
+      column(6,
+        sliderInput("rate_input", "Interest Rate (%)",
+                    min = 4, max = 10, value = 7,
+                    step = 0.25, post = "%",
+                    width = "100%")
+      )
+    ),
+    fluidRow(
+      column(12, align = "center",
+        p(style = "margin: 5px 0; color: #6b7280; font-size: 12px;",
+          paste0("Current DS Capacity (80% of NOI @ 1.25x DSCR): ~", 
+                 dollar(current_noi_ref * 0.8)))
+      )
+    )
+  ),
+  renderUI({
+    ds <- input$ds_input
+    rate <- input$rate_input
+    
+    # Calculate max loan
+    max_loan <- ds / (rate / 100)
+    
+    # Color logic: Higher DS + Lower Rate = more borrowing power = GREEN
+    # Lower DS + Higher Rate = less borrowing power = RED
+    ds_score <- (ds - 50000) / (250000 - 50000)  # 0 to 1
+    rate_score <- (10 - rate) / (10 - 4)  # Inverted: lower rate = higher score
+    combined_score <- (ds_score + rate_score) / 2
+    combined_score <- max(0, min(1, combined_score))
+    
+    # Color gradient
+    if (combined_score < 0.5) {
+      r <- 220
+      g <- round(180 * (combined_score * 2))
+      b <- 50
+    } else {
+      r <- round(220 - 180 * ((combined_score - 0.5) * 2))
+      g <- 180
+      b <- 50
+    }
+    bg_color <- sprintf("rgb(%d, %d, %d)", r, g, b)
+    text_color <- if (combined_score > 0.3) "#1a1a1a" else "#ffffff"
+    
+    # Loan quality indicator
+    loan_quality <- case_when(
+      max_loan >= 2500000 ~ "Strong Capacity",
+      max_loan >= 1800000 ~ "Good Capacity",
+      max_loan >= 1200000 ~ "Moderate Capacity",
+      max_loan >= 800000 ~ "Limited Capacity",
+      TRUE ~ "Constrained"
+    )
+    
+    div(style = "text-align: center; padding: 40px;",
+      div(style = paste0(
+        "display: inline-block; padding: 40px 60px; border-radius: 16px; ",
+        "background: ", bg_color, "; ",
+        "box-shadow: 0 10px 40px rgba(0,0,0,0.15);"
+      ),
+        p(style = paste0("margin: 0 0 10px 0; font-size: 16px; color: ", text_color, "; opacity: 0.8;"),
+          "Maximum Loan Amount"),
+        h1(style = paste0("margin: 0; font-size: 48px; font-weight: bold; color: ", text_color, ";"),
+           dollar(max_loan)),
+        p(style = paste0("margin: 10px 0 0 0; font-size: 14px; color: ", text_color, "; opacity: 0.9;"),
+          loan_quality)
+      ),
+      div(style = "margin-top: 25px; color: #6b7280;",
+        p(style = "margin: 5px 0;", 
+          strong("Formula: "), "Max Loan = Debt Service / Interest Rate"),
+        p(style = "margin: 5px 0; font-size: 13px;",
+          HTML(paste0("Higher DS + Lower Rate = <span style='color: #16a34a; font-weight: bold;'>GREEN</span> (more capacity) | ",
+                      "Lower DS + Higher Rate = <span style='color: #dc2626; font-weight: bold;'>RED</span> (constrained)")))
+      )
+    )
+  })
+)
+```
+
+Row {data-height=100}
+-----------------------------------------------------------------------
+
+### How to Use These Calculators
+
+Use the sliders above to explore different scenarios:
+
+**Portfolio Valuation**: Shows how NOI and Cap Rate combine to determine portfolio value. As you increase NOI and Cap Rate toward stabilization targets, the color shifts from red to green.
+
+**Loan Affordability**: Shows maximum loan amount based on debt service capacity and interest rates. Higher debt service capacity and lower interest rates increase borrowing power (green).
