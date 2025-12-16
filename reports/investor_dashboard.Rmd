@@ -1,5 +1,5 @@
 ---
-title: "Brim AL Portfolio Investor Dashboard"
+title: "Obelisk Portfolio Dashboard"
 output: 
   flexdashboard::flex_dashboard:
     orientation: rows
@@ -174,10 +174,11 @@ color_map <- c(
 
 plot_ly(t12_long, x = ~month, y = ~value, color = ~metric, 
         colors = color_map, type = 'scatter', mode = 'lines+markers',
+        line = list(width = 3), marker = list(size = 10),
         hovertemplate = "%{x}<br>%{y:$,.0f}<extra>%{fullData.name}</extra>") |>
   layout(
     xaxis = list(title = ""),
-    yaxis = list(title = "", tickformat = "$,.0f"),
+    yaxis = list(title = "", tickformat = "$,.0f", rangemode = "tozero"),
     legend = list(orientation = "h", y = -0.15),
     hovermode = "x unified"
   )
