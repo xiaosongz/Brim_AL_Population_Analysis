@@ -1,0 +1,514 @@
+---
+title: "Brim AL Portfolio Investor Dashboard"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    vertical_layout: fill
+    theme:
+      version: 4
+      bootswatch: flatly
+      primary: "#1e3a8a"
+    css: dashboard_styles.css
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(tidyverse)
+library(plotly)
+library(scales)
+library(DT)
+
+# Load processed dashboard data
+dashboard_data <- readRDS("../data/processed/dashboard_data.rds")
+
+kpi <- dashboard_data$kpi
+t12 <- dashboard_data$t12
+valuation_long <- dashboard_data$valuation_long
+loan_long <- dashboard_data$loan_long
+
+# Color palette
+colors <- list(
+  primary = "#1e3a8a",
+  success = "#059669",
+  warning = "#d97706",
+  danger = "#dc2626",
+  fund_i = "#3b82f6",
+  fund_ii = "#10b981",
+  egi = "#6366f1",
+  fixed = "#f59e0b",
+  variable = "#ef4444",
+  noi = "#10b981"
+)
+```
+
+Executive Summary
+=====================================
+
+Row {data-height=120}
+-----------------------------------------------------------------------
+
+### Total Capital Invested
+
+```{r}
+valueBox(
+  value = dollar(kpi$total_icc, accuracy = 1),
+  caption = "Total I.C.C.",
+  icon = "fa-dollar-sign",
+  color = "primary"
+)
+```
+
+### Portfolio Units
+
+```{r}
+valueBox(
+  value = kpi$unit_count,
+  caption = "Single Family Homes",
+  icon = "fa-home",
+  color = "info"
+)
+```
+
+### 2026 Potential NOI
+
+```{r}
+valueBox(
+  value = dollar(kpi$potential_noi_2026, accuracy = 1),
+  caption = "Projected Annual NOI",
+  icon = "fa-chart-line",
+  color = "success"
+)
+```
+
+### Potential Cap Rate
+
+```{r}
+valueBox(
+  value = percent(kpi$potential_cap_rate, accuracy = 0.1),
+  caption = "At Stabilization",
+  icon = "fa-percentage",
+  color = "warning"
+)
+```
+
+### NOI as of Oct 2025
+
+```{r}
+current_noi <- t12$noi[nrow(t12)]
+valueBox(
+  value = dollar(current_noi, accuracy = 1),
+  caption = "NOI as of Oct 2025",
+  icon = "fa-money-bill-wave",
+  color = "info"
+)
+```
+
+### Cap Rate as of Oct 2025
+
+```{r}
+current_cap <- t12$cap_rate[nrow(t12)]
+valueBox(
+  value = percent(current_cap, accuracy = 0.1),
+  caption = "Cap Rate as of Oct 2025",
+  icon = "fa-chart-pie",
+  color = "primary"
+)
+```
+
+Row {data-height=380}
+-----------------------------------------------------------------------
+
+### Fund Capital Allocation
+
+```{r}
+fund_data <- tibble(
+  Fund = c("Fund I", "Fund II"),
+  Capital = c(kpi$fund_i_icc, kpi$fund_ii_icc),
+  Percent = c(kpi$fund_i_icc, kpi$fund_ii_icc) / kpi$total_icc
+)
+
+plot_ly(fund_data, 
+        labels = ~Fund, 
+        values = ~Capital, 
+        type = 'pie',
+        hole = 0.5,
+        textinfo = 'label+percent',
+        textposition = 'outside',
+        marker = list(colors = c(colors$fund_i, colors$fund_ii)),
+        hovertemplate = "%{label}<br>%{value:$,.0f}<br>%{percent}<extra></extra>") |>
+  layout(
+    showlegend = TRUE,
+    legend = list(orientation = "h", y = -0.1),
+    annotations = list(
+      text = paste0("<b>", dollar(kpi$total_icc, scale = 1e-6, suffix = "M"), "</b><br>Total"),
+      showarrow = FALSE,
+      font = list(size = 16)
+    )
+  )
+```
+
+### T-12 Financial Performance Trend
+
+```{r}
+t12_long <- t12 |>
+  select(month, egi, fixed_expense, variable_expense, noi) |>
+  pivot_longer(-month, names_to = "metric", values_to = "value") |>
+  mutate(
+    metric = case_when(
+      metric == "egi" ~ "Effective Gross Income",
+      metric == "fixed_expense" ~ "Fixed Expenses",
+      metric == "variable_expense" ~ "Variable Expenses",
+      metric == "noi" ~ "Net Operating Income"
+    ),
+    metric = factor(metric, levels = c("Effective Gross Income", "Fixed Expenses", 
+                                        "Variable Expenses", "Net Operating Income"))
+  )
+
+color_map <- c(
+  "Effective Gross Income" = colors$egi,
+  "Fixed Expenses" = colors$fixed,
+  "Variable Expenses" = colors$variable,
+  "Net Operating Income" = colors$noi
+)
+
+plot_ly(t12_long, x = ~month, y = ~value, color = ~metric, 
+        colors = color_map, type = 'scatter', mode = 'lines+markers',
+        hovertemplate = "%{x}<br>%{y:$,.0f}<extra>%{fullData.name}</extra>") |>
+  layout(
+    xaxis = list(title = ""),
+    yaxis = list(title = "", tickformat = "$,.0f"),
+    legend = list(orientation = "h", y = -0.15),
+    hovermode = "x unified"
+  )
+```
+
+Row {data-height=380}
+-----------------------------------------------------------------------
+
+### EGI Breakdown: Expenses vs NOI
+
+```{r}
+# Stacked bar with clear visual separation between expenses (red tones) and NOI (green)
+expense_data <- t12 |>
+  mutate(
+    total_expenses = fixed_expense + variable_expense,
+    fixed_pct = fixed_expense / egi * 100,
+    variable_pct = variable_expense / egi * 100,
+    noi_pct = noi / egi * 100
+  )
+
+plot_ly(expense_data, x = ~month) |>
+  # Expenses section (warm colors, stacked together)
+  add_trace(y = ~fixed_expense, name = "Fixed Expenses", 
+            type = 'bar',
+            marker = list(color = "#fbbf24", line = list(color = "#f59e0b", width = 1)),
+            text = ~paste0(round(fixed_pct, 0), "%"),
+            textposition = "inside",
+            hovertemplate = "Fixed Expenses<br>%{y:$,.0f} (%{text})<extra></extra>") |>
+  add_trace(y = ~variable_expense, name = "Variable Expenses", 
+            type = 'bar',
+            marker = list(color = "#f87171", line = list(color = "#ef4444", width = 1)),
+            text = ~paste0(round(variable_pct, 0), "%"),
+            textposition = "inside",
+            hovertemplate = "Variable Expenses<br>%{y:$,.0f} (%{text})<extra></extra>") |>
+  # NOI section (green with distinct styling)
+  add_trace(y = ~noi, name = "Net Operating Income", 
+            type = 'bar',
+            marker = list(
+              color = "#34d399",
+              line = list(color = "#059669", width = 2),
+              pattern = list(shape = "/", solidity = 0.1)
+            ),
+            text = ~paste0(round(noi_pct, 0), "%"),
+            textposition = "inside",
+            textfont = list(color = "#065f46", size = 12, weight = "bold"),
+            hovertemplate = "NOI (Profit)<br>%{y:$,.0f} (%{text})<extra></extra>") |>
+  layout(
+    barmode = 'stack',
+    xaxis = list(title = ""),
+    yaxis = list(title = "Effective Gross Income", tickformat = "$,.0f"),
+    legend = list(orientation = "h", y = -0.15, 
+                  traceorder = "normal"),
+    hovermode = "x unified",
+    annotations = list(
+      list(x = 0.5, y = 1.08, xref = "paper", yref = "paper",
+           text = "<b>EXPENSES</b> (Fixed + Variable) vs <b style='color:#059669'>NOI</b> (Profit)",
+           showarrow = FALSE, font = list(size = 11))
+    )
+  )
+```
+
+### Cap Rate Trend
+
+```{r}
+plot_ly(t12, x = ~month, y = ~cap_rate, type = 'scatter', mode = 'lines+markers',
+        line = list(color = colors$primary, width = 3),
+        marker = list(size = 10, color = colors$primary),
+        hovertemplate = "%{x}<br>Cap Rate: %{y:.2%}<extra></extra>") |>
+  add_trace(y = rep(kpi$potential_cap_rate, nrow(t12)), 
+            name = "Target (9.16%)",
+            line = list(color = colors$success, width = 2, dash = "dash"),
+            marker = list(size = 0),
+            hovertemplate = "Target: %{y:.2%}<extra></extra>") |>
+  layout(
+    xaxis = list(title = ""),
+    yaxis = list(title = "Capitalization Rate", tickformat = ".1%", 
+                 range = c(0, max(kpi$potential_cap_rate * 1.1, 0.1))),
+    legend = list(orientation = "h", y = -0.15),
+    annotations = list(
+      list(x = "Oct", y = kpi$potential_cap_rate, 
+           text = "Stabilized Target", showarrow = FALSE,
+           xanchor = "left", yanchor = "bottom",
+           font = list(color = colors$success, size = 10))
+    )
+  )
+```
+
+
+Scenario Analysis
+=====================================
+
+Row {data-height=500}
+-----------------------------------------------------------------------
+
+### Portfolio Valuation: Current vs Target Position
+
+```{r}
+# Current and target positions
+current_noi <- t12$noi[nrow(t12)]  # Oct 2025: ~$134K
+current_cap <- t12$cap_rate[nrow(t12)] * 100  # ~3.6%
+current_value <- current_noi / (current_cap / 100)
+
+target_noi <- kpi$potential_noi_2026  # ~$260K
+target_cap <- kpi$potential_cap_rate * 100  # ~9.16%
+target_value <- target_noi / (target_cap / 100)
+
+# Focus on relevant range around current and target
+noi_range <- seq(100000, 300000, by = 20000)
+cap_range <- seq(3, 10, by = 0.5)
+
+# Build valuation matrix
+val_grid <- expand_grid(noi = noi_range, cap_rate = cap_range) |>
+  mutate(value = noi / (cap_rate / 100))
+
+val_matrix <- val_grid |>
+  pivot_wider(names_from = noi, values_from = value) |>
+  arrange(cap_rate)
+
+z_vals <- as.matrix(val_matrix[, -1])
+
+# Create heatmap with position markers
+plot_ly() |>
+  # Heatmap layer
+  add_heatmap(
+    x = noi_range, y = cap_range, z = z_vals,
+    colorscale = list(
+      list(0, "#dc2626"),    # Red - low value
+      list(0.3, "#f97316"),  # Orange
+      list(0.5, "#fbbf24"),  # Amber - mid
+      list(0.7, "#84cc16"),  # Lime
+      list(1, "#22c55e")     # Green - high value
+    ),
+    hovertemplate = "NOI: %{x:$,.0f}<br>Cap Rate: %{y:.1f}%<br>Value: %{z:$,.0f}<extra></extra>",
+    colorbar = list(title = "Portfolio<br>Value", tickformat = "$,.0f", len = 0.8),
+    showscale = TRUE
+  ) |>
+  # Current position marker (blue circle)
+  add_trace(
+    x = current_noi, y = current_cap,
+    type = "scatter", mode = "markers+text",
+    marker = list(size = 18, color = "#2563eb", 
+                  line = list(color = "white", width = 3)),
+    text = "CURRENT", textposition = "top center",
+    textfont = list(color = "#1e40af", size = 11, family = "Arial Black"),
+    hovertemplate = paste0(
+      "<b>CURRENT POSITION</b><br>",
+      "NOI: ", dollar(current_noi), "<br>",
+      "Cap Rate: ", percent(current_cap/100, accuracy = 0.1), "<br>",
+      "Value: ", dollar(current_value),
+      "<extra></extra>"
+    ),
+    name = "Current (Oct 2025)"
+  ) |>
+  # Target position marker (green diamond)
+  add_trace(
+    x = target_noi, y = target_cap,
+    type = "scatter", mode = "markers+text",
+    marker = list(size = 18, color = "#16a34a", symbol = "diamond",
+                  line = list(color = "white", width = 3)),
+    text = "TARGET", textposition = "bottom center",
+    textfont = list(color = "#166534", size = 11, family = "Arial Black"),
+    hovertemplate = paste0(
+      "<b>TARGET POSITION (2026)</b><br>",
+      "NOI: ", dollar(target_noi), "<br>",
+      "Cap Rate: ", percent(target_cap/100, accuracy = 0.1), "<br>",
+      "Value: ", dollar(target_value),
+      "<extra></extra>"
+    ),
+    name = "Target (2026)"
+  ) |>
+  # Arrow from current to target
+  layout(
+    xaxis = list(title = "Net Operating Income (NOI)", tickformat = "$,.0f",
+                 range = c(90000, 310000)),
+    yaxis = list(title = "Capitalization Rate (%)", 
+                 range = c(10.5, 2.5)),  # Reversed
+    legend = list(orientation = "h", y = -0.12, x = 0.5, xanchor = "center"),
+    annotations = list(
+      list(
+        x = target_noi, y = target_cap,
+        ax = current_noi, ay = current_cap,
+        xref = "x", yref = "y", axref = "x", ayref = "y",
+        showarrow = TRUE,
+        arrowhead = 2, arrowsize = 1.5, arrowwidth = 2,
+        arrowcolor = "#7c3aed"
+      ),
+      list(
+        x = 0.5, y = 1.06, xref = "paper", yref = "paper",
+        text = "<b>Value = NOI / Cap Rate</b>  |  Higher NOI + Higher Cap Rate = Stabilized Value",
+        showarrow = FALSE, font = list(size = 11, color = "#374151")
+      )
+    )
+  )
+```
+
+### Loan Affordability by Interest Rate
+
+```{r}
+# Focus on practical interest rate range (5-9%) and debt service capacity
+# Using current NOI as basis for debt service capacity
+ds_capacity <- current_noi * 0.8  # 80% of NOI for debt service (1.25x DSCR)
+ds_range <- seq(80000, 200000, by = 15000)
+rate_range <- seq(5, 9, by = 0.5)
+
+# Build loan matrix
+loan_grid <- expand_grid(ds = ds_range, rate = rate_range) |>
+  mutate(max_loan = ds / (rate / 100))
+
+loan_matrix <- loan_grid |>
+  pivot_wider(names_from = ds, values_from = max_loan) |>
+  arrange(rate)
+
+z_loan <- as.matrix(loan_matrix[, -1])
+
+# Estimate current debt service capacity
+current_ds <- current_noi * 0.8  # Assuming 1.25x DSCR target
+
+plot_ly() |>
+  add_heatmap(
+    x = ds_range, y = rate_range, z = z_loan,
+    colorscale = list(
+      list(0, "#fef3c7"),   # Light amber - low loan
+      list(0.5, "#60a5fa"), # Blue - mid
+      list(1, "#1e3a8a")    # Dark blue - high loan
+    ),
+    hovertemplate = "Debt Service: %{x:$,.0f}/yr<br>Rate: %{y:.1f}%<br>Max Loan: %{z:$,.0f}<extra></extra>",
+    colorbar = list(title = "Max Loan<br>Amount", tickformat = "$,.0f", len = 0.8),
+    showscale = TRUE
+  ) |>
+  # Mark current DS capacity line
+  add_trace(
+    x = rep(current_ds, length(rate_range)),
+    y = rate_range,
+    type = "scatter", mode = "lines",
+    line = list(color = "#dc2626", width = 3, dash = "dash"),
+    name = paste0("Current DS Capacity (~", dollar(current_ds, accuracy = 1), ")"),
+    hovertemplate = "Current DS Capacity<br>%{x:$,.0f}<extra></extra>"
+  ) |>
+  layout(
+    xaxis = list(title = "Annual Debt Service Capacity", tickformat = "$,.0f"),
+    yaxis = list(title = "Interest Rate (%)", range = c(9.5, 4.5)),
+    legend = list(orientation = "h", y = -0.12),
+    annotations = list(
+      list(
+        x = 0.5, y = 1.06, xref = "paper", yref = "paper",
+        text = "<b>Max Loan = Debt Service / Interest Rate</b>  |  Red line = Current capacity at 1.25x DSCR",
+        showarrow = FALSE, font = list(size = 11, color = "#374151")
+      )
+    )
+  )
+```
+
+Row {data-height=380}
+-----------------------------------------------------------------------
+
+### Key Metrics Summary
+
+```{r}
+metrics_table <- tibble(
+  Metric = c(
+    "Total Capital Invested (I.C.C.)",
+    "Fund I Contribution",
+    "Fund II Contribution",
+    "Number of Units",
+    "Potential Monthly Rent",
+    "Potential Annual Rent",
+    "2026 Projected NOI",
+    "Stabilized Cap Rate",
+    "Current T-12 NOI (Oct 2025)",
+    "Current Cap Rate"
+  ),
+  Value = c(
+    dollar(kpi$total_icc),
+    dollar(kpi$fund_i_icc),
+    dollar(kpi$fund_ii_icc),
+    as.character(kpi$unit_count),
+    dollar(kpi$potential_monthly_rent),
+    dollar(kpi$potential_annual_rent),
+    dollar(kpi$potential_noi_2026),
+    percent(kpi$potential_cap_rate, accuracy = 0.01),
+    dollar(t12$noi[nrow(t12)]),
+    percent(t12$cap_rate[nrow(t12)], accuracy = 0.01)
+  ),
+  Category = c(
+    rep("Capital", 3),
+    rep("Portfolio", 4),
+    rep("Returns", 3)
+  )
+)
+
+datatable(
+  metrics_table,
+  options = list(
+    pageLength = 15,
+    dom = 't',
+    ordering = FALSE
+  ),
+  rownames = FALSE,
+  class = 'cell-border stripe'
+) |>
+  formatStyle(
+    'Category',
+    backgroundColor = styleEqual(
+      c('Capital', 'Portfolio', 'Returns'),
+      c('#eff6ff', '#f0fdf4', '#fef3c7')
+    )
+  )
+```
+
+### T-12 Monthly Data
+
+```{r}
+t12_display <- t12 |>
+  mutate(
+    `Effective Gross Income` = dollar(egi),
+    `Fixed Expenses` = dollar(fixed_expense),
+    `Variable Expenses` = dollar(variable_expense),
+    `Net Operating Income` = dollar(noi),
+    `Cap Rate` = percent(cap_rate, accuracy = 0.01),
+    `Month` = as.character(month)
+  ) |>
+  select(Month, `Effective Gross Income`, `Fixed Expenses`, 
+         `Variable Expenses`, `Net Operating Income`, `Cap Rate`)
+
+datatable(
+  t12_display,
+  options = list(
+    pageLength = 6,
+    dom = 't',
+    ordering = FALSE
+  ),
+  rownames = FALSE,
+  class = 'cell-border stripe'
+)
+```

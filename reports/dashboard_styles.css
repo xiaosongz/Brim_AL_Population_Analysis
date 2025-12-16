@@ -1,0 +1,74 @@
+/* Investor Dashboard Custom Styles */
+
+/* Value boxes */
+.value-box {
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.value-box .value {
+  font-size: 28px;
+  font-weight: 600;
+}
+
+.value-box .caption {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Chart containers */
+.chart-wrapper {
+  border-radius: 8px;
+  background: white;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+
+/* Section headers */
+.chart-title {
+  font-weight: 600;
+  color: #1e3a8a;
+  border-bottom: 2px solid #e5e7eb;
+  padding-bottom: 8px;
+  margin-bottom: 16px;
+}
+
+/* Data tables */
+.dataTable {
+  font-size: 13px;
+}
+
+.dataTable thead th {
+  background-color: #1e3a8a;
+  color: white;
+  font-weight: 500;
+}
+
+.dataTable tbody td {
+  padding: 10px 12px;
+}
+
+/* Navigation */
+.navbar {
+  background-color: #1e3a8a !important;
+}
+
+.navbar-brand {
+  font-weight: 600;
+  font-size: 18px;
+}
+
+/* Tab styling */
+.nav-tabs-custom > .nav-tabs > li.active > a {
+  border-top-color: #1e3a8a;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .value-box .value {
+    font-size: 22px;
+  }
+  .value-box .caption {
+    font-size: 11px;
+  }
+}
